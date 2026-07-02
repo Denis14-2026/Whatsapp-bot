@@ -1,0 +1,7 @@
+node_modules
+auth
+.env
+.git
+npm-debug.log
+README_RAILWAY.md
+local-server.js

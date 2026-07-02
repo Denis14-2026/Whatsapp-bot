@@ -1,0 +1,16 @@
+{
+  "name": "cupidon-bot",
+  "version": "2.0.0",
+  "description": "Cupidon WhatsApp bot, ported from Baileys to whatsapp-web.js",
+  "main": "bot.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
+    "node-cron": "^3.0.3",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.34.6"
+  }
+}

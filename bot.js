@@ -1571,8 +1571,6 @@ async function startBot() {
 
     cron.schedule('0 0 * * *', async () => {
         const time = getTimeTogether().split(',')[0];
-        await sendImageFromFolder(sock, path.join(__dirname, 'Denis', 'poze'), `${BOT_NAME}\n🖼️`, groupId);
-        await sendImageFromFolder(sock, path.join(__dirname, 'Stefania', 'poze'), `${BOT_NAME}\n🖼️`, groupId);
         await botSend(sock, groupId, {
             text: `${BOT_NAME}\n🎉 Ați ajuns la ❤️**${time}**❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
         });

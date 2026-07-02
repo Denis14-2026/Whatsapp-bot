@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:20-alpine
 WORKDIR /app
 
 # Install dependencies
@@ -7,9 +7,6 @@ RUN npm ci --production || npm install --production
 
 # Copy source
 COPY . .
-
-# Default auth mount dir (Railway: /mnt/auth)
-ENV AUTH_DIR=/mnt/auth
 
 EXPOSE 3000
 CMD ["node", "bot.js"]

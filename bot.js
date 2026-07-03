@@ -517,7 +517,7 @@ let ticTacToeFont = null;
 
 function getTimeTogether(offsetHours = 0) {
     const now = new Date();
-    if (offsetHours) now.setHours(now.getHours() + offsetHours);
+    if (offsetHours) now.setHours(now.getHours() - offsetHours);
     let diff = now - startDate;
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     diff -= days * (1000 * 60 * 60 * 24);
@@ -1253,7 +1253,7 @@ async function startBot() {
         if (text.includes('cupidon')) {
             if (text.includes('impreuna') || text.includes('impreuna')) {
                 await botSend(sock, groupId, {
-                    text: `${BOT_NAME}\n❤️ Sunteți împreună de:\n**${getTimeTogether(2)}**`
+                    text: `${BOT_NAME}\n❤️ Sunteți împreună de:\n**${getTimeTogether()}**`
                 });
                 return;
             }

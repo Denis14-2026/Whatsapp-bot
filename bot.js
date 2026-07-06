@@ -478,6 +478,9 @@ Scrie:
 📝 bucketlist
 🌐 website
 🎮 tictactoe
+🪨 rps
+🧠 quiz
+🔢 numar
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📖 *INFO*
@@ -513,7 +516,6 @@ let riddleTimeout = null;
 let wrongAnswerCount = 0;
 
 const activeTicTacToeGames = new Map();
-let ticTacToeFont = null;
 
 function getTimeTogether(offsetHours = 0) {
     const now = new Date();
@@ -539,14 +541,55 @@ function isBotMessageText(text) {
     return typeof text === 'string' && normalizeText(text).startsWith(BOT_MESSAGE_PREFIX);
 }
 
+// ============================================================
+// NO-REPEAT MESSAGE PICKER
+// ------------------------------------------------------------
+// Instead of picking a random index every time (which allows
+// the same message to show up again immediately, or very often),
+// we keep a shuffled "deck" of indices per message type. We deal
+// cards off the top of the deck one at a time; once the deck is
+// empty (every message in that pool has been shown), we reshuffle
+// a brand new deck. This guarantees no message repeats until the
+// entire pool has been exhausted.
+// ============================================================
+
+const messageDecks = new Map(); // type -> array of remaining shuffled indices
+
+function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function buildFreshDeck(length) {
+    const deck = new Array(length);
+    for (let i = 0; i < length; i++) deck[i] = i;
+    return shuffleArray(deck);
+}
+
+function drawIndex(key, length) {
+    let deck = messageDecks.get(key);
+    if (!deck || deck.length === 0) {
+        deck = buildFreshDeck(length);
+        messageDecks.set(key, deck);
+    }
+    return deck.pop();
+}
+
 function pickFrom(type) {
+    const key = type || '__default__';
+
     if (type && contentLibrary[type]) {
         const pool = contentLibrary[type];
-        return { type, text: pool[Math.floor(Math.random() * pool.length)] };
+        const idx = drawIndex(key, pool.length);
+        return { type, text: pool[idx] };
     }
 
     const pool = type ? messagePool.filter(m => m.type === type) : messagePool;
-    return pool[Math.floor(Math.random() * pool.length)];
+    const idx = drawIndex(key, pool.length);
+    return pool[idx];
 }
 
 function buildSimpleMessage(type) {
@@ -571,58 +614,23 @@ function getCountdownMessage() {
     return `🎉 Mai sunt ${days} zile până la un nou început de an și la o nouă pagină plină de iubire!`;
 }
 
-function drawRect(image, x, y, width, height, color) {
-    const xEnd = Math.min(image.bitmap.width, x + width);
-    const yEnd = Math.min(image.bitmap.height, y + height);
-    for (let yy = y; yy < yEnd; yy++) {
-        for (let xx = x; xx < xEnd; xx++) {
-            image.setPixelColor(color, xx, yy);
-        }
+// Text/emoji based board — no image rendering, no Jimp/font dependency.
+// This is far more reliable than the old image renderer, which could
+// silently throw (bad font, bad Jimp API version, missing font files)
+// and leave the game stuck right after "cupidon start".
+const TTT_KEYCAPS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣'];
+
+function renderTicTacToeText(board) {
+    const cellDisplay = (i) => {
+        if (board[i] === 'X') return '❌';
+        if (board[i] === 'O') return '⭕';
+        return TTT_KEYCAPS[i];
+    };
+    const rows = [];
+    for (let r = 0; r < 3; r++) {
+        rows.push([0, 1, 2].map(c => cellDisplay(r * 3 + c)).join(''));
     }
-}
-
-async function renderTicTacToeBoard(board) {
-    const size = 600;
-    const cell = size / 3;
-    const image = new Jimp.Jimp({ width: size, height: size, color: 0xffffffff });
-    const lineColor = 0x000000ff;
-    const thickness = 14;
-
-    for (let i = 1; i < 3; i++) {
-        const pos = Math.round(i * cell - thickness / 2);
-        drawRect(image, pos, 0, thickness, size, lineColor);
-        drawRect(image, 0, pos, size, thickness, lineColor);
-    }
-
-    for (let index = 0; index < 9; index++) {
-        const symbol = board[index];
-        if (!symbol) continue;
-
-        const col = index % 3;
-        const row = Math.floor(index / 3);
-        const x = col * cell;
-        const y = row * cell;
-
-        image.print(
-            ticTacToeFont,
-            x,
-            y,
-            {
-                text: symbol,
-                alignmentX: Jimp.HorizontalAlign.CENTER,
-                alignmentY: Jimp.VerticalAlign.MIDDLE
-            },
-            cell,
-            cell
-        );
-    }
-
-    return await new Promise((resolve, reject) => {
-        image.getBuffer(Jimp.JimpMime.png, (err, buffer) => {
-            if (err) return reject(err);
-            resolve(buffer);
-        });
-    });
+    return rows.join('\n');
 }
 
 function createEmptyTicTacToeBoard() {
@@ -631,15 +639,24 @@ function createEmptyTicTacToeBoard() {
 
 function getTicTacToeCaption(game) {
     const symbolText = game.currentSymbol || 'X';
-    return `${BOT_NAME}\n🎮 TicTacToe Cupidon\nSimbol curent: *${symbolText}*\nAlege o casetă de la 1 la 9.`;
+    return `${BOT_NAME}\n🎮 TicTacToe Cupidon\n\n${renderTicTacToeText(game.board)}\n\nSimbol curent: *${symbolText}*\nAlege o casetă de la 1 la 9.`;
 }
 
-function getTicTacToeButtons(rowStart) {
-    return [
-        { buttonId: `ttt_move_${rowStart}`, buttonText: { displayText: `${rowStart + 1}` }, type: 1 },
-        { buttonId: `ttt_move_${rowStart + 1}`, buttonText: { displayText: `${rowStart + 2}` }, type: 1 },
-        { buttonId: `ttt_move_${rowStart + 2}`, buttonText: { displayText: `${rowStart + 3}` }, type: 1 }
-    ];
+function getTicTacToeListRows(board) {
+    const cellLabel = (i) => {
+        if (board[i] === 'X') return '❌ Ocupat';
+        if (board[i] === 'O') return '⭕ Ocupat';
+        return `${TTT_KEYCAPS[i]} Liber`;
+    };
+    const rows = [];
+    for (let i = 0; i < 9; i++) {
+        rows.push({
+            title: `Caseta ${i + 1}`,
+            description: cellLabel(i),
+            rowId: `ttt_move_${i}`
+        });
+    }
+    return rows;
 }
 
 function checkTicTacToeWinner(board) {
@@ -665,28 +682,21 @@ function checkTicTacToeWinner(board) {
 
 async function sendTicTacToeButtons(sock, game) {
     const caption = getTicTacToeCaption(game);
-    const boardBuffer = await renderTicTacToeBoard(game.board);
 
+    // Single interactive list message instead of several button messages.
+    // This avoids the extra near-empty chat bubbles WhatsApp buttons need —
+    // one clean message with a button that opens all 9 cells to pick from.
     await trackSendMessage(sock, groupId, {
-        image: boardBuffer,
-        caption,
-        footer: 'Alege numărul casetei făcând click pe butonul corespunzător.',
-        buttons: getTicTacToeButtons(0),
-        headerType: 4
-    });
-
-    await trackSendMessage(sock, groupId, {
-        text: 'Completează mutarea: alege una dintre casetele de jos.',
-        footer: 'TicTacToe Cupidon',
-        buttons: getTicTacToeButtons(3),
-        headerType: 1
-    });
-
-    await trackSendMessage(sock, groupId, {
-        text: 'Ține minte: 1-3 sus, 4-6 mijloc, 7-9 jos.',
-        footer: 'TicTacToe Cupidon',
-        buttons: getTicTacToeButtons(6),
-        headerType: 1
+        text: caption,
+        footer: 'Apasă butonul de mai jos pentru a alege o casetă.',
+        title: 'TicTacToe Cupidon',
+        buttonText: 'Alege o casetă',
+        sections: [
+            {
+                title: 'Tabla de joc',
+                rows: getTicTacToeListRows(game.board)
+            }
+        ]
     });
 }
 
@@ -712,9 +722,16 @@ async function startTicTacToeGame(sock) {
 }
 
 async function beginTicTacToeGame(sock, game) {
-    game.phase = 'playing';
-    await botSend(sock, groupId, { text: `${BOT_NAME}\n🎮 TicTacToe Cupidon\nJocul începe acum!` });
-    await sendTicTacToeButtons(sock, game);
+    try {
+        game.phase = 'playing';
+        await sendTicTacToeButtons(sock, game);
+    } catch (error) {
+        console.error('🎮 Eroare la pornirea TicTacToe:', error?.message || error);
+        activeTicTacToeGames.delete(groupId);
+        await botSend(sock, groupId, {
+            text: `${BOT_NAME}\n⚠️ A apărut o eroare la pornirea jocului. Scrie *cupidon tictactoe* pentru a încerca din nou.`
+        });
+    }
 }
 
 async function handleTicTacToeMove(sock, game, index) {
@@ -725,26 +742,21 @@ async function handleTicTacToeMove(sock, game, index) {
 
     if (game.board[index]) {
         await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Caseta ${index + 1} este deja ocupată. Alege alta.` });
+        await sendTicTacToeButtons(sock, game);
         return;
     }
 
     game.board[index] = game.currentSymbol;
     const winner = checkTicTacToeWinner(game.board);
     if (winner) {
-        const boardBuffer = await renderTicTacToeBoard(game.board);
+        const boardText = renderTicTacToeText(game.board);
         if (winner === 'draw') {
-            await trackSendMessage(sock, groupId, {
-                image: boardBuffer,
-                caption: `${BOT_NAME}\n🤝 Remiză! Jocul s-a terminat.`,
-                footer: 'TicTacToe Cupidon',
-                headerType: 4
+            await botSend(sock, groupId, {
+                text: `${boardText}\n\n🤝 Remiză! Jocul s-a terminat.\nScrie *cupidon tictactoe* pentru o revanșă!`
             });
         } else {
-            await trackSendMessage(sock, groupId, {
-                image: boardBuffer,
-                caption: `${BOT_NAME}\n🎉 *${winner}* a câștigat! Felicitări!`,
-                footer: 'TicTacToe Cupidon',
-                headerType: 4
+            await botSend(sock, groupId, {
+                text: `${boardText}\n\n🎉 *${winner}* a câștigat! Felicitări!\nScrie *cupidon tictactoe* pentru o revanșă!`
             });
         }
         activeTicTacToeGames.delete(groupId);
@@ -752,7 +764,15 @@ async function handleTicTacToeMove(sock, game, index) {
     }
 
     game.currentSymbol = game.currentSymbol === 'X' ? 'O' : 'X';
-    await sendTicTacToeButtons(sock, game);
+    try {
+        await sendTicTacToeButtons(sock, game);
+    } catch (error) {
+        console.error('🎮 Eroare la trimiterea tablei TicTacToe:', error?.message || error);
+        activeTicTacToeGames.delete(groupId);
+        await botSend(sock, groupId, {
+            text: `${BOT_NAME}\n⚠️ A apărut o eroare în joc. Scrie *cupidon tictactoe* pentru a începe din nou.`
+        });
+    }
 }
 
 async function handleTicTacToeButton(sock, buttonId) {
@@ -789,10 +809,196 @@ async function handleTicTacToeButton(sock, buttonId) {
     await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Buton TicTacToe necunoscut.` });
 }
 
+// ============================================================
+// ROCK · PAPER · SCISSORS  (Piatră, Foarfecă, Hârtie)
+// ============================================================
+
+const RPS_CHOICES = {
+    piatra: { label: '🪨 Piatră', beats: 'foarfeca' },
+    foarfeca: { label: '✂️ Foarfecă', beats: 'hartie' },
+    hartie: { label: '📄 Hârtie', beats: 'piatra' }
+};
+
+function pickRpsChoice() {
+    const keys = Object.keys(RPS_CHOICES);
+    return keys[Math.floor(Math.random() * keys.length)];
+}
+
+async function startRpsGame(sock) {
+    await trackSendMessage(sock, groupId, {
+        text: `${BOT_NAME}\n🪨📄✂️ Piatră, Foarfecă, Hârtie\n\nAlege-ți mutarea!`,
+        footer: 'Cupidon va alege și el o mutare.',
+        title: 'Piatră, Foarfecă, Hârtie',
+        buttonText: 'Alege mutarea',
+        sections: [
+            {
+                title: 'Alege',
+                rows: [
+                    { title: RPS_CHOICES.piatra.label, description: 'Bate foarfeca', rowId: 'rps_piatra' },
+                    { title: RPS_CHOICES.foarfeca.label, description: 'Bate hârtia', rowId: 'rps_foarfeca' },
+                    { title: RPS_CHOICES.hartie.label, description: 'Bate piatra', rowId: 'rps_hartie' }
+                ]
+            }
+        ]
+    });
+}
+
+async function handleRpsChoice(sock, buttonId) {
+    const playerChoice = buttonId.replace('rps_', '');
+    if (!RPS_CHOICES[playerChoice]) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Alegere invalidă.` });
+        return;
+    }
+
+    const botChoice = pickRpsChoice();
+    const playerLabel = RPS_CHOICES[playerChoice].label;
+    const botLabel = RPS_CHOICES[botChoice].label;
+
+    let resultText;
+    if (playerChoice === botChoice) {
+        resultText = '🤝 Egalitate! Amândoi ați ales la fel.';
+    } else if (RPS_CHOICES[playerChoice].beats === botChoice) {
+        resultText = '🎉 Ai câștigat! Felicitări!';
+    } else {
+        resultText = '😅 Cupidon a câștigat de data asta!';
+    }
+
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🪨📄✂️ Piatră, Foarfecă, Hârtie\n\nTu ai ales: ${playerLabel}\nCupidon a ales: ${botLabel}\n\n${resultText}\n\nScrie *cupidon rps* pentru o revanșă!`
+    });
+}
+
+// ============================================================
+// QUIZ CUPLU (multiple-choice quiz, no repeat until pool cycles)
+// ============================================================
+
+const quizQuestions = [
+    { question: 'Care este cea mai romantică perioadă a zilei?', options: ['Dimineața', 'Amiaza', 'Apusul', 'Miezul nopții'], correctIndex: 2 },
+    { question: 'Ce simbolizează o inimă roșie?', options: ['Prietenie', 'Dragoste', 'Noroc', 'Curaj'], correctIndex: 1 },
+    { question: 'Ce e cel mai important într-o relație?', options: ['Bani', 'Încredere', 'Faimă', 'Noroc'], correctIndex: 1 },
+    { question: 'Ce culoare reprezintă de obicei iubirea?', options: ['Albastru', 'Verde', 'Roșu', 'Galben'], correctIndex: 2 },
+    { question: 'Ce zi este dedicată îndrăgostiților?', options: ['1 Iunie', '14 Februarie', '1 Ianuarie', '25 Decembrie'], correctIndex: 1 },
+    { question: 'Ce gest arată de obicei afecțiune?', options: ['Ignorare', 'Îmbrățișare', 'Ceartă', 'Tăcere'], correctIndex: 1 },
+    { question: 'Ce simbol este asociat cu Cupidon?', options: ['Sabia', 'Arcul și săgeata', 'Scutul', 'Coroana'], correctIndex: 1 },
+    { question: 'Ce floare este cel mai des asociată cu dragostea?', options: ['Trandafirul', 'Lalea', 'Ghiocelul', 'Margareta'], correctIndex: 0 },
+    { question: 'Ce reprezintă o promisiune într-o relație?', options: ['Un joc', 'Un angajament sincer', 'O glumă', 'O obligație rece'], correctIndex: 1 },
+    { question: 'Ce face o relație să dureze în timp?', options: ['Norocul', 'Comunicarea și respectul', 'Banii', 'Distanța'], correctIndex: 1 }
+];
+
+async function startQuizGame(sock) {
+    const idx = drawIndex('quiz', quizQuestions.length);
+    const q = quizQuestions[idx];
+
+    const rows = q.options.map((opt, i) => ({
+        title: opt,
+        rowId: `quiz_${idx}_${i}`
+    }));
+
+    await trackSendMessage(sock, groupId, {
+        text: `${BOT_NAME}\n🧠 Quiz Cupidon\n\n❓ ${q.question}`,
+        footer: 'Alege un răspuns.',
+        title: 'Quiz Cupidon',
+        buttonText: 'Răspunde',
+        sections: [
+            { title: 'Variante de răspuns', rows }
+        ]
+    });
+}
+
+async function handleQuizAnswer(sock, buttonId) {
+    const parts = buttonId.split('_'); // quiz_<questionIndex>_<optionIndex>
+    const questionIndex = Number(parts[1]);
+    const optionIndex = Number(parts[2]);
+    const q = quizQuestions[questionIndex];
+
+    if (!q || Number.isNaN(optionIndex)) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Răspuns invalid.` });
+        return;
+    }
+
+    if (optionIndex === q.correctIndex) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n✅ Corect! Ești genială/geniu ❤️\n\nScrie *cupidon quiz* pentru altă întrebare!` });
+    } else {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit! Răspunsul corect era: *${q.options[q.correctIndex]}*\n\nScrie *cupidon quiz* pentru altă întrebare!` });
+    }
+}
+
+// ============================================================
+// GHICEȘTE NUMĂRUL (number guessing game)
+// ============================================================
+
+const activeNumberGames = new Map(); // groupId -> { target, attemptsLeft, min, max }
+const NUMBER_GAME_MAX_ATTEMPTS = 7;
+const NUMBER_GAME_MIN = 1;
+const NUMBER_GAME_MAX = 100;
+
+async function startNumberGuessGame(sock) {
+    const target = Math.floor(Math.random() * (NUMBER_GAME_MAX - NUMBER_GAME_MIN + 1)) + NUMBER_GAME_MIN;
+    activeNumberGames.set(groupId, {
+        target,
+        attemptsLeft: NUMBER_GAME_MAX_ATTEMPTS,
+        min: NUMBER_GAME_MIN,
+        max: NUMBER_GAME_MAX
+    });
+
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🔢 Ghicește Numărul\n\nM-am gândit la un număr între ${NUMBER_GAME_MIN} și ${NUMBER_GAME_MAX}.\nAi ${NUMBER_GAME_MAX_ATTEMPTS} încercări. Scrie un număr!`
+    });
+}
+
+async function handleNumberGuess(sock, game, guess) {
+    if (guess === game.target) {
+        await botSend(sock, groupId, {
+            text: `${BOT_NAME}\n🎉 Corect! Numărul era *${game.target}*! Ai ghicit din ${NUMBER_GAME_MAX_ATTEMPTS - game.attemptsLeft + 1} încercări ❤️\n\nScrie *cupidon numar* pentru un joc nou!`
+        });
+        activeNumberGames.delete(groupId);
+        return;
+    }
+
+    game.attemptsLeft--;
+
+    if (game.attemptsLeft <= 0) {
+        await botSend(sock, groupId, {
+            text: `${BOT_NAME}\n❌ Ai terminat încercările! Numărul era *${game.target}*.\n\nScrie *cupidon numar* pentru un joc nou!`
+        });
+        activeNumberGames.delete(groupId);
+        return;
+    }
+
+    const hint = guess < game.target ? '⬆️ Mai mare' : '⬇️ Mai mic';
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n${hint}! Mai ai *${game.attemptsLeft}* încercări.`
+    });
+}
+
+// ============================================================
+// Generic router for all list/button interactive responses
+// ============================================================
+
+async function handleInteractiveButton(sock, buttonId) {
+    if (buttonId.startsWith('ttt_')) {
+        await handleTicTacToeButton(sock, buttonId);
+        return;
+    }
+    if (buttonId.startsWith('rps_')) {
+        await handleRpsChoice(sock, buttonId);
+        return;
+    }
+    if (buttonId.startsWith('quiz_')) {
+        await handleQuizAnswer(sock, buttonId);
+        return;
+    }
+    console.log('⚠️ Buton necunoscut, ignorat:', buttonId);
+}
+
 function buildRelationshipMessage(type) {
-    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const pick = (arr, key) => {
+        const idx = drawIndex(key, arr.length);
+        return arr[idx];
+    };
 
     const relationshipPool = [
+
         '💕 E ceva minunat între voi, păstrați acea scânteie.',
         '🌟 Dragostea voastră radiază căldură și bunătate.',
         '💞 Fiecare zi împreună aduce o nouă amintire frumoasă.',
@@ -897,33 +1103,33 @@ function buildRelationshipMessage(type) {
 
     if (type === 'lovemeter') {
         const pct = Math.floor(Math.random() * 41) + 60;
-        const note = pick(['pare să fie o combinație foarte bună', 'chimia este evidentă', 'există mult potențial între voi', 'se simte sincer și cald']);
+        const note = pick(['pare să fie o combinație foarte bună', 'chimia este evidentă', 'există mult potențial între voi', 'se simte sincer și cald'], 'lovemeter_note');
         return `💖 Love Meter: ${pct}% — ${note}!`;
     }
 
     if (type === 'compatibility') {
         const pct = Math.floor(Math.random() * 41) + 60;
-        const note = pick(['sunteți foarte complementari', 'aveți valori aliniate', 'înțelegerea e la un nivel înalt', 'potențial de lungă durată']);
+        const note = pick(['sunteți foarte complementari', 'aveți valori aliniate', 'înțelegerea e la un nivel înalt', 'potențial de lungă durată'], 'compatibility_note');
         return `💕 Compatibilitate: ${pct}% — ${note}!`;
     }
 
     if (type === 'memory') {
-        return pick(memoryPool);
+        return pick(memoryPool, 'memory');
     }
 
     if (type === 'firstdate') {
-        return pick(firstdatePool);
+        return pick(firstdatePool, 'firstdate');
     }
 
     if (type === 'anniversary') {
-        return pick(anniversaryPool);
+        return pick(anniversaryPool, 'anniversary');
     }
 
     if (type === 'countdown') {
         return `⏳ ${getCountdownMessage()}`;
     }
 
-    return pick(relationshipPool);
+    return pick(relationshipPool, 'relationship');
 }
 
 const imaginePool = [
@@ -981,8 +1187,8 @@ const imaginePool = [
 ];
 
 function buildImagineMessage() {
-    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-    return pick(imaginePool);
+    const idx = drawIndex('imagine', imaginePool.length);
+    return imaginePool[idx];
 }
 
 function getRandomImagePayload(text, folderPath = null) {
@@ -1005,7 +1211,9 @@ function getRandomImagePayload(text, folderPath = null) {
         return null;
     }
 
-    const randomFile = files[Math.floor(Math.random() * files.length)];
+    // No-repeat draw for images too, keyed by folder path
+    const idx = drawIndex(`img:${folderPath || 'default'}`, files.length);
+    const randomFile = files[idx];
     const ext = path.extname(randomFile).toLowerCase();
     const mimetype = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.gif' ? 'image/gif' : 'image/jpeg';
 
@@ -1094,20 +1302,6 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    try {
-        const jimpFonts = require('@jimp/plugin-print/fonts');
-        ticTacToeFont = await Jimp.loadFont(jimpFonts.SANS_128_BLACK);
-    } catch (error) {
-        console.error('❌ Nu s-a putut încărca fontul TicTacToe 128:', error.message);
-        try {
-            const jimpFonts = require('@jimp/plugin-print/fonts');
-            ticTacToeFont = await Jimp.loadFont(jimpFonts.SANS_64_BLACK);
-        } catch (fallbackError) {
-            console.error('❌ Nu s-a putut încărca fontul TicTacToe fallback:', fallbackError.message);
-            ticTacToeFont = null;
-        }
-    }
-
     const handleShutdown = async (signal) => {
         if (shutdownAnnounced) {
             process.exit(0);
@@ -1193,7 +1387,7 @@ async function startBot() {
         if (buttonId) console.log('🔘 Buton apăsat:', buttonId);
 
         if (buttonId) {
-            await handleTicTacToeButton(sock, buttonId);
+            await handleInteractiveButton(sock, buttonId);
             return;
         }
 
@@ -1219,6 +1413,15 @@ async function startBot() {
 
             if (activeGame.phase === 'ready' && text && !isStartCommand) {
                 await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Ai ales simbolul *${activeGame.currentSymbol}*. Spune *cupidon start* pentru a porni tabla de joc.` });
+                return;
+            }
+        }
+
+        const activeNumberGame = activeNumberGames.get(groupId);
+        if (activeNumberGame && !text.includes('cupidon')) {
+            const guess = Number(text);
+            if (!Number.isNaN(guess) && Number.isInteger(guess) && guess >= activeNumberGame.min && guess <= activeNumberGame.max) {
+                await handleNumberGuess(sock, activeNumberGame, guess);
                 return;
             }
         }
@@ -1555,6 +1758,21 @@ async function startBot() {
             if (text.includes('tictactoe')) {
                 console.log('🎮 TicTacToe command detected.');
                 await startTicTacToeGame(sock);
+                return;
+            }
+
+            if (text.includes('rps') || text.includes('piatrafoarfecahartie')) {
+                await startRpsGame(sock);
+                return;
+            }
+
+            if (text.includes('quiz')) {
+                await startQuizGame(sock);
+                return;
+            }
+
+            if (text.includes('numar')) {
+                await startNumberGuessGame(sock);
                 return;
             }
 

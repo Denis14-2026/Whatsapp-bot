@@ -1557,24 +1557,24 @@ async function startBot() {
         }
     });
 
-    cron.schedule('30 7 * * *', async () => {
-        const morning = morningMessages[Math.floor(Math.random() * morningMessages.length)];
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n${morning}` });
-    });
-
-    const randomTimes = ['0 12 * * *', '0 16 * * *', '0 19 * * *', '30 21 * * *'];
-    randomTimes.forEach(cronTime => {
+    // Schedule hourly messages from 10:00 to 23:00 with rotating message typesa
+    const messageTypes = ['romantic', 'rizz', 'flirt', 'pickup'];
+    
+    for (let hour = 10; hour <= 23; hour++) {
+        const messageType = messageTypes[(hour - 10) % messageTypes.length];
+        const cronTime = `0 ${hour} * * *`;
+        
         cron.schedule(cronTime, async () => {
-            await sendCommandReply(sock, null);
-        });
-    });
+            await sendCommandReply(sock, messageType);
+        }, { timeZone: 'Europe/Bucharest' });
+    }
 
     cron.schedule('0 0 * * *', async () => {
         const time = getTimeTogether().split(',')[0];
         await botSend(sock, groupId, {
             text: `${BOT_NAME}\n🎉 Ați ajuns la ❤️**${time}**❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
         });
-    });
+    }, { timeZone: 'Europe/Bucharest' });
 }
 
 startBot();

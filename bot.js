@@ -1975,36 +1975,6 @@ async function startBot() {
                 return;
             }
 
-            if (text.includes('stefi') || text.includes('stefania')) {
-                await sendTextWithImage(
-                    sock,
-                    `${BOT_NAME}\n🖼️ Iată o imagine specială pentru tine! Stefania`,
-                    'general',
-                    path.join(__dirname, 'Stefania', 'poze')
-                );
-                return;
-            }
-
-            if (text.includes('denis')) {
-                await sendTextWithImage(
-                    sock,
-                    `${BOT_NAME}\n🖼️ Iată o imagine specială pentru tine! Denis`,
-                    'general',
-                    path.join(__dirname, 'Denis', 'poze')
-                );
-                return;
-            }
-
-            if (text.includes('temp')) {
-                const time = getTimeTogether().split(',')[0];
-                await sendImageFromFolder(sock, path.join(__dirname, 'Denis', 'poze'), `${BOT_NAME}\n🖼️`, groupId);
-                await sendImageFromFolder(sock, path.join(__dirname, 'Stefania', 'poze'), `${BOT_NAME}\n🖼️`, groupId);
-                await botSend(sock, groupId, {
-                    text: `${BOT_NAME}\n🎉 Ați ajuns la ❤️**${time}**❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
-                });
-                return;
-            }
-
             if (text.includes('memory')) {
                 await sendTextWithImage(sock, buildRelationshipMessage('memory'), 'relationship');
                 return;

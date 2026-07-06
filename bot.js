@@ -490,7 +490,6 @@ Scrie:
 🎰 slot
 🧩 scramble
 🎯 hangman
-🧩 anagram
 🧠 emojiquiz
 🧮 math
 🎨 color
@@ -1102,27 +1101,6 @@ async function handleHangmanGuess(sock, game, guessText) {
     }
 
     await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit! Mai ai *${HANGMAN_MAX_WRONG - game.wrongGuesses}* greșeli.` });
-}
-
-const activeAnagramGames = new Map();
-const ANAGRAM_WORDS = ['pahar', 'luna', 'munca', 'soare', 'cerc', 'munte', 'carte', 'caini', 'frunze', 'suflet'];
-
-async function startAnagramGame(sock) {
-    const word = ANAGRAM_WORDS[Math.floor(Math.random() * ANAGRAM_WORDS.length)];
-    activeAnagramGames.set(groupId, { word });
-    await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🧩 Anagramă\n\nGăsește cuvântul din: *${scrambleWord(word)}*`
-    });
-}
-
-async function handleAnagramGuess(sock, game, guessText) {
-    if (normalizeText(guessText) === normalizeText(game.word)) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect! Cuvântul era *${game.word}*!` });
-        activeAnagramGames.delete(groupId);
-        return;
-    }
-
-    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
 }
 
 const activeEmojiQuizGames = new Map();
@@ -1895,12 +1873,6 @@ async function startBot() {
             return;
         }
 
-        const activeAnagramGame = activeAnagramGames.get(groupId);
-        if (activeAnagramGame && !text.includes('cupidon')) {
-            await handleAnagramGuess(sock, activeAnagramGame, rawText);
-            return;
-        }
-
         const activeEmojiQuizGame = activeEmojiQuizGames.get(groupId);
         if (activeEmojiQuizGame && !text.includes('cupidon')) {
             await handleEmojiQuizGuess(sock, activeEmojiQuizGame, rawText);
@@ -2278,7 +2250,7 @@ async function startBot() {
 
             if (text.includes('games') || text.includes('jocuri')) {
                 await botSend(sock, groupId, {
-                    text: `${BOT_NAME}\n🎮 Jocuri disponibile\n\n🧠 riddle / ghicitoare\n🎲 tictactoe\n🧠 quiz\n🔢 numar\n🎲 dice\n🪙 coin\n🔮 8ball / fortune\n🎰 slot\n🧩 scramble\n🎯 hangman\n🧩 anagram\n🧠 emojiquiz\n🧮 math\n🎨 color\n🎲 choose\n\nScrie *cupidon <nume joc>* pentru a începe!`
+                    text: `${BOT_NAME}\n🎮 Jocuri disponibile\n\n🧠 riddle / ghicitoare\n🎲 tictactoe\n🧠 quiz\n🔢 numar\n🎲 dice\n🪙 coin\n🔮 8ball / fortune\n🎰 slot\n🧩 scramble\n🎯 hangman\n🧠 emojiquiz\n🧮 math\n🎨 color\n🎲 choose\n\nScrie *cupidon <nume joc>* pentru a începe!`
                 });
                 return;
             }
@@ -2310,11 +2282,6 @@ async function startBot() {
 
             if (text.includes('hangman')) {
                 await startHangmanGame(sock);
-                return;
-            }
-
-            if (text.includes('anagram')) {
-                await startAnagramGame(sock);
                 return;
             }
 

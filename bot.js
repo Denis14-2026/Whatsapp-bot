@@ -1251,6 +1251,23 @@ async function startBot() {
         }
 
         if (text.includes('cupidon')) {
+            // Immediate test sender: `cupidon sendnow <type>`
+            if (text.includes('sendnow')) {
+                const parts = text.split(/\s+/);
+                const idx = parts.indexOf('sendnow');
+                const typeArg = parts[idx + 1] || null;
+                const allowed = ['romantic', 'rizz', 'flirt', 'pickup', 'riddle'];
+                if (typeArg && allowed.includes(typeArg)) {
+                    if (typeArg === 'riddle') {
+                        await sendCommandReply(sock, 'riddle');
+                    } else {
+                        await sendCommandReply(sock, typeArg);
+                    }
+                } else {
+                    await botSend(sock, groupId, { text: `${BOT_NAME}\nUsage: cupidon sendnow <romantic|rizz|flirt|pickup|riddle>` });
+                }
+                return;
+            }
             if (text.includes('impreuna') || text.includes('impreuna')) {
                 await botSend(sock, groupId, {
                     text: `${BOT_NAME}\n❤️ Sunteți împreună de:\n**${getTimeTogether()}**`

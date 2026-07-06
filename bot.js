@@ -477,10 +477,26 @@ Scrie:
 🎀 gift
 📝 bucketlist
 🌐 website
+
+━━━━━━━━━━━━━━━━━━━━━━
+🎮 *GAMES*
+━━━━━━━━━━━━━━━━━━━━━━
 🎮 tictactoe
-🪨 rps
 🧠 quiz
 🔢 numar
+🎲 dice
+🪙 coin
+🔮 8ball / fortune
+🎰 slot
+🧩 scramble
+🎯 hangman
+🧩 anagram
+🧠 emojiquiz
+🧮 math
+🎨 color
+🧠 trivia
+🐾 animal
+🎲 choose
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📖 *INFO*
@@ -810,65 +826,6 @@ async function handleTicTacToeButton(sock, buttonId) {
 }
 
 // ============================================================
-// ROCK · PAPER · SCISSORS  (Piatră, Foarfecă, Hârtie)
-// ============================================================
-
-const RPS_CHOICES = {
-    piatra: { label: '🪨 Piatră', beats: 'foarfeca' },
-    foarfeca: { label: '✂️ Foarfecă', beats: 'hartie' },
-    hartie: { label: '📄 Hârtie', beats: 'piatra' }
-};
-
-function pickRpsChoice() {
-    const keys = Object.keys(RPS_CHOICES);
-    return keys[Math.floor(Math.random() * keys.length)];
-}
-
-async function startRpsGame(sock) {
-    await trackSendMessage(sock, groupId, {
-        text: `${BOT_NAME}\n🪨📄✂️ Piatră, Foarfecă, Hârtie\n\nAlege-ți mutarea!`,
-        footer: 'Cupidon va alege și el o mutare.',
-        title: 'Piatră, Foarfecă, Hârtie',
-        buttonText: 'Alege mutarea',
-        sections: [
-            {
-                title: 'Alege',
-                rows: [
-                    { title: RPS_CHOICES.piatra.label, description: 'Bate foarfeca', rowId: 'rps_piatra' },
-                    { title: RPS_CHOICES.foarfeca.label, description: 'Bate hârtia', rowId: 'rps_foarfeca' },
-                    { title: RPS_CHOICES.hartie.label, description: 'Bate piatra', rowId: 'rps_hartie' }
-                ]
-            }
-        ]
-    });
-}
-
-async function handleRpsChoice(sock, buttonId) {
-    const playerChoice = buttonId.replace('rps_', '');
-    if (!RPS_CHOICES[playerChoice]) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Alegere invalidă.` });
-        return;
-    }
-
-    const botChoice = pickRpsChoice();
-    const playerLabel = RPS_CHOICES[playerChoice].label;
-    const botLabel = RPS_CHOICES[botChoice].label;
-
-    let resultText;
-    if (playerChoice === botChoice) {
-        resultText = '🤝 Egalitate! Amândoi ați ales la fel.';
-    } else if (RPS_CHOICES[playerChoice].beats === botChoice) {
-        resultText = '🎉 Ai câștigat! Felicitări!';
-    } else {
-        resultText = '😅 Cupidon a câștigat de data asta!';
-    }
-
-    await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🪨📄✂️ Piatră, Foarfecă, Hârtie\n\nTu ai ales: ${playerLabel}\nCupidon a ales: ${botLabel}\n\n${resultText}\n\nScrie *cupidon rps* pentru o revanșă!`
-    });
-}
-
-// ============================================================
 // QUIZ CUPLU (multiple-choice quiz, no repeat until pool cycles)
 // ============================================================
 
@@ -971,6 +928,385 @@ async function handleNumberGuess(sock, game, guess) {
     });
 }
 
+    const activeScrambleGames = new Map();
+    const SCRAMBLE_MAX_ATTEMPTS = 3;
+    const SCRAMBLE_WORDS = ['dragoste', 'iubire', 'zambet', 'vis', 'lumină', 'căldură', 'fericire', 'surpriză', 'aventură', 'poveste', 'imagine', 'bucurie', 'pământ', 'univers', 'stea', 'galaxie', 'natură', 'pădure', 'munte', 'ocean', 'fluviu', 'furtună', 'fulger', 'răsărit', 'apus', 'speranță', 'curaj', 'bunătate', 'prietenie', 'respect', 'libertate', 'pasiune', 'armonie', 'liniște', 'încredere', 'onestitate', 'timp', 'destin', 'adevăr', 'secret', 'mister', 'magie', 'iluzie', 'memorie', 'gând', 'creație', 'energie', 'scânteie', 'castel', 'corabie', 'oglindă', 'carte', 'comoară', 'oraș', 'grădină', 'fereastră', 'potecă', 'insulă', 'palat', 'luminos', 'albastru', 'vânt', 'ploaie', 'soare', 'lună', 'nor', 'cer', 'foc', 'gheață', 'nisip', 'aur', 'argint', 'diamant', 'smarald', 'perla', 'coroană', 'rege', 'regină', 'cavaler', 'scut', 'sabie', 'arc', 'săgeată', 'izvor', 'cascadă', 'peșteră', 'vulcan', 'vale', 'deal', 'câmpie', 'floare', 'copac', 'frunză', 'iarbă', 'fluture', 'albină', 'pasăre', 'vultur', 'leu', 'lup', 'urs', 'cerb', 'vulpe', 'pisică', 'câine', 'cal', 'delfin', 'balenă', 'rechin', 'pește', 'scoică', 'nisip', 'plajă', 'val', 'briză', 'far', 'port', 'ancoră', 'busolă', 'hartă', 'drum', 'cheie', 'lăcat', 'poartă', 'ușă', 'perete', 'acoperiș', 'turn', 'pod', 'tunel', 'sat', 'metropolă', 'planetă', 'astronaut', 'rachetă', 'satelit', 'telescop', 'microscop', 'laborator', 'știință', 'chimie', 'fizică', 'matematică', 'istorie', 'artă', 'muzică', 'dans', 'teatru', 'film', 'actor', 'pictor', 'sculptor', 'poet', 'scriitor', 'filozof', 'geniu', 'talent', 'succes', 'victorie', 'triumf', 'campion', 'trofeu', 'medalie', 'efort', 'muncă', 'studiu', 'școală', 'liceu', 'facultate', 'curs', 'examen', 'diplomă', 'bursă', 'cariere', 'afacere', 'proiect', 'idee', 'plan', 'strategie', 'tactică', 'echipă', 'coleg', 'partener', 'lider', 'ghid', 'profesor', 'maestru', 'elev', 'student', 'učenik', 'prieten', 'amic', 'vecin', 'familie', 'părinte', 'mamă', 'tată', 'frate', 'soră', 'bunic', 'bunică', 'copil', 'băiat', 'fată', 'tânăr', 'adult', 'bătrân', 'om', 'persoană', 'cetățean', 'popor', 'națiune', 'țară', 'capitală', 'steag', 'imn', 'tradiție', 'obicei', 'sărbătoare', 'crăciun', 'paște', 'aniversare', 'petrecere', 'dans', 'cântec', 'chitară', 'pian', 'vioară', 'tobă', 'trompetă', 'flaut', 'sunet', 'melodie', 'ritm', 'acord', 'voce', 'ecou', 'șoaptă', 'strigăt', 'râs', 'plâns', 'suspin', 'emoție', 'sentiment', 'dor', 'jale', 'nostalgie', 'mândrie', 'regret', 'iertare', 'milă', 'compasiune', 'generozitate', 'altruism', 'modestie', 'ambiție', 'mândrie', 'orgoliu', 'demnitate', 'onoare', 'glorie', 'faimă', 'reputație', 'caracter', 'suflet', 'spirit', 'minte', 'creier', 'gândire', 'rațiune', 'logică', 'intuiție', 'instinct', 'talent', 'abilitate', 'iscusință', 'meșteșug', 'meserie', 'doctor', 'inginer', 'avocat', 'judecător', 'polițist', 'pompier', 'soldat', 'pilot', 'marinar', 'șofer', 'bucătar', 'brutar', 'chelner', 'fanzin', 'jurnalist', 'fotograf', 'arhitect', 'designer', 'programator', 'hacker', 'robot', 'android', 'cibernetică', 'tehnologie', 'computer', 'laptop', 'telefon', 'ecran', 'tastatură', 'mouse', 'cablu', 'rețea', 'internet', 'website', 'aplicație', 'cod', 'program', 'bază', 'date', 'server', 'nor', 'stocare', 'memorie', 'procesor', 'placă', 'video', 'sunet', 'boxă', 'căști', 'microfon', 'cameră', 'video', 'obiectiv', 'blitz', 'senzor', 'baterie', 'încărcător', 'curent', 'electricitate', 'magnet', 'energie', 'forță', 'viteză', 'accelerare', 'gravitație', 'orbită', 'sistem', 'solar', 'cometă', 'asteroid', 'meteoriti', 'auroră', 'boreală', 'curcubeu', 'halou', 'umbră', 'penumbră', 'reflexie', 'refracție', 'prismă', 'lentilă', 'ochelari', 'lupă', 'ceas', 'cronometru', 'calendar', 'secol', 'mileniu', 'oră', 'minut', 'secundă', 'zi', 'noapte', 'dimineață', 'prânz', 'seară', 'miez', 'noapte', 'zori', 'amurg', 'primăvară', 'vară', 'toamnă', 'iarnă', 'zăpadă', 'gheață', 'fulg', 'viscol', 'ger', 'îngheț', 'topire', 'cald', 'fierbinte', 'rece', 'cald', 'temperatură', 'termometru', 'climă', 'vreme', 'prognoză', 'satelit', 'radar', 'hartă', 'atlas', 'glob', 'hartă', 'geografie', 'istorie', 'arheologie', 'muzeu', 'expoziție', 'galerie', 'monument', 'statuie', 'pictură', 'frescă', 'mozaic', 'vitraliu', 'biserică', 'catedrală', 'mănăstire', 'templu', 'moschee', 'sinagogă', 'altar', 'rugăciune', 'credință', 'religie', 'mit', 'legendă', 'basm', 'poveste', 'eroi', 'balaur', 'dragon', 'unicorn', 'fenix', 'sirenă', 'centaur', 'gigant', 'uriaș', 'pitic', 'elf', 'zână', 'vrăjitor', 'magician', 'iluzionist', 'truc', 'spectacol', 'public', 'audiență', 'aplauze', 'scenă', 'cortină', 'culise', 'decor', 'costum', 'mască', 'machiaj', 'rol', 'piesă', 'scenariu', 'regizor', 'producător', 'bilet', 'rând', 'scaun', 'lojă', 'balcon', 'foaier', 'intrare', 'ieșire', 'urgență', 'alarmă', 'semnal', 'sirenă', 'far', 'semafor', 'intersecție', 'stradă', 'bulevard', 'alee', 'trotuar', 'trecere', 'pietoni', 'pavele', 'asfalt', 'autostradă', 'șosea', 'pod', 'viaduct', 'pasaj', 'cale', 'ferată', 'tren', 'locomotivă', 'vagon', 'gară', 'peron', 'bilet', 'controlor', 'călător', 'pasager', 'bagaj', 'valiză', 'rucsac', 'geantă', 'portofel', 'card', 'bani', 'monedă', 'bancnotă', 'aur', 'argint', 'cupru', 'fier', 'oțel', 'metal', 'lemn', 'piatră', 'marmură', 'granit', 'ciment', 'beton', 'cărămidă', 'sticlă', 'cristal', 'plastic', 'cauciuc', 'piele', 'blană', 'bumbac', 'lână', 'mătase', 'pânză', 'fir', 'ață', 'ac', 'foarfecă', 'mașină', 'cusut', 'haină', 'pantalon', 'cămașă', 'tricou', 'pulover', 'jachetă', 'palton', 'rochie', 'fustă', 'pantof', 'ghetă', 'cizmă', 'sandale', 'papuci', 'șosete', 'mănuși', 'fular', 'căciulă', 'pălărie', 'șapcă', 'umbrelă', 'geantă', 'rucsac', 'ceas', 'inel', 'cercei', 'colier', 'brățară', 'broșă', 'parfum', 'cosmetic', 'săpun', 'șampon', 'pastă', 'dinți', 'perie', 'oglindă', 'prosop', 'baie', 'duș', 'cadă', 'robinet', 'apă', 'caldă', 'rece', 'săpun', 'spumă', 'bulă', 'balon', 'săpun', 'jucărie', 'păpușă', 'mașinuță', 'trenuleț', 'robot', 'puzzle', 'lego', 'zar', 'carte', 'joc', 'tablă', 'șah', 'dame', 'remi', 'monopoly', 'poker', 'cărți', 'pachet', 'as', 'rege', 'damă', 'valet', 'joker', 'zaruri', 'noroc', 'șansă', 'risc', 'pariu', 'câștig', 'pierdere', 'premiu', 'cadou', 'surpriză', 'felicitare', 'tort', 'lumânare', 'dorință', 'petrecere', 'invitație', 'oaspete', 'gazdă', 'masă', 'scaun', 'farfurie', 'pahar', 'cană', 'ceașcă', 'furculiță', 'cuțit', 'lingură', 'linguriță', 'șervețel', 'față', 'masă', 'bucătărie', 'aragaz', 'cuptor', 'frigider', 'congelator', 'blender', 'toaster', 'cafea', 'ceai', 'zahăr', 'sare', 'piper', 'condiment', 'ulei', 'oțet', 'făină', 'mălai', 'orez', 'paste', 'pâine', 'unt', 'lapte', 'brânză', 'cașcaval', 'iaurt', 'smântână', 'ou', 'carne', 'pui', 'porc', 'vită', 'pește', 'legume', 'roșie', 'castravete', 'ceapă', 'usturoi', 'cartof', 'morcov', 'ardei', 'varză', 'conopidă', 'brocoli', 'spanac', 'salată', 'fasole', 'mazăre', 'porumb', 'ciuperci', 'fructe', 'măr', 'pară', 'banană', 'portocală', 'lămâie', 'mandarină', 'struguri', 'pepene', 'căpșuni', 'cireșe', 'vișine', 'prune', 'caise', 'piersici', 'ananas', 'mango', 'kiwi', 'rodie', 'alune', 'nuci', 'migdale', 'fistic', 'ciocolată', 'bomboană', 'înghețată', 'prăjitură', 'biscuit', 'gogoașă', 'clătită', 'plăcintă', 'suc', 'apă', 'minerală', 'plată', 'limonadă', 'bere', 'vin', 'șampanie', 'cocktail', 'gheață', 'pai', 'pahare', 'toast', 'noroc', 'sănătate', 'viață', 'tinerete', 'bătrânețe', 'naștere', 'copilărie', 'adolescență', 'maturitate', 'trecut', 'prezent', 'viitor', 'orizont', 'infinit', 'absolut', 'perfecțiune', 'ideal', 'scop', 'țintă', 'obiectiv', 'vis', 'coșmar', 'somn', 'pat', 'pernă', 'pătură', 'plapumă', 'saltea', 'cearsaf', 'trezire', 'alarmă', 'cafea', 'rutină', 'gimnastică', 'sport', 'alergare', 'fotbal', 'baschet', 'tenis', 'volei', 'handbal', 'rugby', 'hochei', 'patinaj', 'schi', 'înot', 'ciclism', 'atletism', 'gimnastică', 'box', 'karate', 'judo', 'yoga', 'fitness', 'sală', 'antrenor', 'echipament', 'minge', 'plasă', 'poartă', 'teren', 'stadion', 'tribună', 'suporter', 'arbitru', 'scor', 'meci', 'repriză', 'prelungiri', 'penalty', 'fault', 'cartonaș', 'galben', 'roșu', 'eliminare', 'accidentare', 'medic', 'ambulanță', 'spital', 'farmacie', 'rețetă', 'pastilă', 'sirop', 'cremă', 'pansament', 'fașă', 'termometru', 'tensiometru', 'stetoscop', 'injecție', 'vaccin', 'tratament', 'vindecare', 'sănătate', 'energie', 'vitalitate', 'forță', 'putere', 'curaj', 'voință', 'ambiție', 'perseverență', 'răbdare', 'calm', 'pace', 'liniște', 'armonie', 'echilibru', 'stabilitate', 'siguranță', 'protecție', 'scut', 'armură', 'pază', 'gardă', 'alarmă', 'câine', 'pază', 'gard', 'poartă', 'lacăt', 'cheie', 'seif', 'comoară', 'aur', 'bijuterii', 'secret', 'mister', 'enigmă', 'ghicitoare', 'indiciu', 'detectiv', 'anchetă', 'caz', 'suspect', 'martor', 'dovadă', 'probă', 'amprentă', 'lupă', 'lanternă', 'noapte', 'întuneric', 'umbră', 'siluetă', 'pas', 'zgomot', 'șoaptă', 'frică', 'spaimă', 'groază', 'tensiune', 'suspans', 'frison', 'fior', 'emoție', 'uimire', 'surpriză', 'șoc', 'minune', 'miracol', 'magie', 'vrăjitorie', 'blestem', 'farmec', 'talisman', 'amuletă', 'noroc', 'destin', 'soartă', 'șansă', 'succes', 'glorie'];
+
+
+function shuffleChars(chars) {
+    const arr = [...chars];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function scrambleWord(word) {
+    const scrambled = shuffleChars(word.split(''));
+    const joined = scrambled.join('');
+    return joined === word ? scrambleWord(word) : joined;
+}
+
+async function startScrambleGame(sock) {
+    const word = SCRAMBLE_WORDS[Math.floor(Math.random() * SCRAMBLE_WORDS.length)];
+    const scrambled = scrambleWord(word);
+    activeScrambleGames.set(groupId, {
+        word,
+        scrambled,
+        attemptsLeft: SCRAMBLE_MAX_ATTEMPTS
+    });
+
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🧩 Ghicește cuvântul\n\nCuvânt amestecat: *${scrambled}*\n\nAi ${SCRAMBLE_MAX_ATTEMPTS} încercări. Scrie răspunsul!`
+    });
+}
+
+async function handleScrambleGuess(sock, game, guess) {
+    const normalizedGuess = normalizeText(guess);
+    const normalizedWord = normalizeText(game.word);
+
+    if (normalizedGuess === normalizedWord) {
+        await botSend(sock, groupId, {
+            text: `${BOT_NAME}\n🎉 Corect! Cuvântul era *${game.word}* ❤️\n\nScrie *cupidon scramble* pentru un nou cuvânt!`
+        });
+        activeScrambleGames.delete(groupId);
+        return;
+    }
+
+    game.attemptsLeft--;
+    if (game.attemptsLeft <= 0) {
+        await botSend(sock, groupId, {
+            text: `${BOT_NAME}\n😅 Ai epuizat încercările. Cuvântul era *${game.word}*.\n\nScrie *cupidon scramble* pentru altă rundă!`
+        });
+        activeScrambleGames.delete(groupId);
+        return;
+    }
+
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n❌ Greșit! Mai ai *${game.attemptsLeft}* încercări.`
+    });
+}
+
+async function startDiceGame(sock) {
+    const value = Math.floor(Math.random() * 6) + 1;
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🎲 Zarul a ieșit *${value}*️⃣\n\nScrie *cupidon dice* pentru altă aruncare!`
+    });
+}
+
+async function startCoinFlipGame(sock) {
+    const result = Math.random() > 0.5 ? '🪙 Cap' : '🪙 Pajură';
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🪙 Flip coin\n\nRezultatul este: *${result}*\n\nScrie *cupidon coin* pentru altă încercare!`
+    });
+}
+
+async function startEightBallGame(sock) {
+    const answers = [
+        '💫 Da, sigur!',
+        '🌙 Nu chiar acum.',
+        '✨ Da, dar răbdare.',
+        '🌈 Se pare că da.',
+        '☁️ Mă îndoiesc.',
+        '🌟 Concentrează-te și întreabă din nou.'
+    ];
+    const answer = answers[drawIndex('eightball', answers.length)];
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🔮 Magic 8 Ball\n\n${answer}`
+    });
+}
+
+async function startSlotMachineGame(sock) {
+    const icons = ['🍒', '🍋', '⭐', '🔔', '🍀', '💎'];
+    const reels = Array.from({ length: 3 }, () => icons[Math.floor(Math.random() * icons.length)]);
+    const [a, b, c] = reels;
+    let result = '😅 Nu de data asta.';
+
+    if (a === b && b === c) {
+        result = '🎉 Jackpot! Super tare!';
+    } else if (a === b || b === c || a === c) {
+        result = '😄 Aproape!';
+    }
+
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🎰 Slot Machine\n\n${a} | ${b} | ${c}\n\n${result}\n\nScrie *cupidon slot* pentru altă rundă!`
+    });
+}
+
+const activeHangmanGames = new Map();
+const HANGMAN_MAX_WRONG = 6;
+const HANGMAN_WORDS = ['dragoste', 'zambet', 'luna', 'cafea', 'plimbare', 'vis', 'stea', 'floare', 'caldura', 'poveste', 'iubire', 'bucurie', 'serbare', 'mister', 'magie'];
+
+function getHangmanDisplay(word, guessedLetters) {
+    return word.split('').map(ch => (guessedLetters.has(ch) ? ch : '_')).join(' ');
+}
+
+async function startHangmanGame(sock) {
+    const word = HANGMAN_WORDS[Math.floor(Math.random() * HANGMAN_WORDS.length)];
+    activeHangmanGames.set(groupId, {
+        word,
+        guessedLetters: new Set(),
+        wrongGuesses: 0
+    });
+
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🎯 Hangman\n\nCuvânt: *${getHangmanDisplay(word, new Set())}*\n\nScrie o literă sau cuvântul întreg. Ai ${HANGMAN_MAX_WRONG} greșeli.`
+    });
+}
+
+async function handleHangmanGuess(sock, game, guessText) {
+    const guess = normalizeText(guessText);
+    if (!guess) return;
+
+    if (guess.length === 1 && /^[a-z]+$/.test(guess)) {
+        if (game.guessedLetters.has(guess)) {
+            await botSend(sock, groupId, { text: `${BOT_NAME}\n⚠️ Ai încercat deja litera *${guess}*.` });
+            return;
+        }
+
+        game.guessedLetters.add(guess);
+        if (game.word.includes(guess)) {
+            const display = getHangmanDisplay(game.word, game.guessedLetters);
+            if (display.replace(/\s/g, '').includes('_')) {
+                await botSend(sock, groupId, { text: `${BOT_NAME}\n✅ Litera *${guess}* este corectă!\n\nCuvânt: *${display}*` });
+            } else {
+                await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect! Ai ghicit cuvântul *${game.word}*!` });
+                activeHangmanGames.delete(groupId);
+            }
+            return;
+        }
+
+        game.wrongGuesses += 1;
+        if (game.wrongGuesses >= HANGMAN_MAX_WRONG) {
+            await botSend(sock, groupId, { text: `${BOT_NAME}\n😅 Ai epuizat greșelile. Cuvântul era *${game.word}*.` });
+            activeHangmanGames.delete(groupId);
+            return;
+        }
+
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Litera *${guess}* nu se află în cuvânt.\nMai ai *${HANGMAN_MAX_WRONG - game.wrongGuesses}* greșeli.` });
+        return;
+    }
+
+    if (guess === normalizeText(game.word)) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect! Ai ghicit cuvântul *${game.word}*!` });
+        activeHangmanGames.delete(groupId);
+        return;
+    }
+
+    game.wrongGuesses += 1;
+    if (game.wrongGuesses >= HANGMAN_MAX_WRONG) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n😅 Ai epuizat greșelile. Cuvântul era *${game.word}*.` });
+        activeHangmanGames.delete(groupId);
+        return;
+    }
+
+    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit! Mai ai *${HANGMAN_MAX_WRONG - game.wrongGuesses}* greșeli.` });
+}
+
+const activeAnagramGames = new Map();
+const ANAGRAM_WORDS = ['pahar', 'luna', 'munca', 'soare', 'cerc', 'munte', 'carte', 'caini', 'frunze', 'suflet'];
+
+async function startAnagramGame(sock) {
+    const word = ANAGRAM_WORDS[Math.floor(Math.random() * ANAGRAM_WORDS.length)];
+    activeAnagramGames.set(groupId, { word });
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🧩 Anagramă\n\nGăsește cuvântul din: *${scrambleWord(word)}*`
+    });
+}
+
+async function handleAnagramGuess(sock, game, guessText) {
+    if (normalizeText(guessText) === normalizeText(game.word)) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect! Cuvântul era *${game.word}*!` });
+        activeAnagramGames.delete(groupId);
+        return;
+    }
+
+    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+}
+
+const activeEmojiQuizGames = new Map();
+const EMOJI_QUIZ_ITEMS = [
+    { emoji: '💖', answer: 'dragoste' },
+    { emoji: '🌙', answer: 'noapte' },
+    { emoji: '☀️', answer: 'soare' },
+    { emoji: '🍕', answer: 'pizza' },
+    { emoji: '🎵', answer: 'muzica' },
+    { emoji: '🧁', answer: 'prajitura' }
+];
+
+async function startEmojiQuizGame(sock) {
+    const item = EMOJI_QUIZ_ITEMS[Math.floor(Math.random() * EMOJI_QUIZ_ITEMS.length)];
+    activeEmojiQuizGames.set(groupId, { answer: item.answer });
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🧠 Emoji Quiz\n\nCe cuvânt reprezintă ${item.emoji}?\nScrie răspunsul!`
+    });
+}
+
+async function handleEmojiQuizGuess(sock, game, guessText) {
+    if (normalizeText(guessText) === normalizeText(game.answer)) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect!` });
+        activeEmojiQuizGames.delete(groupId);
+        return;
+    }
+    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+}
+
+const activeMathGames = new Map();
+
+async function startMathQuizGame(sock) {
+    const a = Math.floor(Math.random() * 10) + 1;
+    const b = Math.floor(Math.random() * 10) + 1;
+    const ops = ['+', '-', '*'];
+    const op = ops[Math.floor(Math.random() * ops.length)];
+    let answer = 0;
+    let expression = `${a} ${op} ${b}`;
+    if (op === '+') answer = a + b;
+    if (op === '-') answer = a - b;
+    if (op === '*') answer = a * b;
+
+    activeMathGames.set(groupId, { answer });
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🧮 Math Quiz\n\nRezolvă: *${expression}*\nScrie răspunsul!`
+    });
+}
+
+async function handleMathGuess(sock, game, guessText) {
+    const guess = Number(guessText);
+    if (!Number.isNaN(guess) && guess === game.answer) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect!` });
+        activeMathGames.delete(groupId);
+        return;
+    }
+    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+}
+
+const activeColorGames = new Map();
+const COLOR_ITEMS = [
+    { emoji: '🔴', answer: 'rosu' },
+    { emoji: '🔵', answer: 'albastru' },
+    { emoji: '🟢', answer: 'verde' },
+    { emoji: '🟡', answer: 'galben' },
+    { emoji: '🟣', answer: 'mov' },
+    { emoji: '⚪', answer: 'alb' }
+];
+
+async function startColorGame(sock) {
+    const item = COLOR_ITEMS[Math.floor(Math.random() * COLOR_ITEMS.length)];
+    activeColorGames.set(groupId, { answer: item.answer });
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🎨 Color Guess\n\nCare culoare este ${item.emoji}?\nScrie răspunsul!`
+    });
+}
+
+async function handleColorGuess(sock, game, guessText) {
+    if (normalizeText(guessText) === normalizeText(game.answer)) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect!` });
+        activeColorGames.delete(groupId);
+        return;
+    }
+    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+}
+
+const activeTriviaGames = new Map();
+const TRIVIA_QUESTIONS = [
+    { question: 'Care este capitala României?', answer: 'bucuresti' },
+    { question: 'Ce planetă este cunoscută ca planeta roșie?', answer: 'marte' },
+    { question: 'Care este cel mai mare ocean de pe Pământ?', answer: 'pacific' },
+    { question: 'Cine a scris Romeo și Julieta?', answer: 'shakespeare' },
+    { question: 'Ce anotimp vine după iarnă?', answer: 'primavara' }
+];
+
+async function startTriviaGame(sock) {
+    const item = TRIVIA_QUESTIONS[Math.floor(Math.random() * TRIVIA_QUESTIONS.length)];
+    activeTriviaGames.set(groupId, { answer: item.answer });
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🧠 Trivia\n\n${item.question}\nScrie răspunsul!`
+    });
+}
+
+async function handleTriviaGuess(sock, game, guessText) {
+    if (normalizeText(guessText) === normalizeText(game.answer)) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect!` });
+        activeTriviaGames.delete(groupId);
+        return;
+    }
+    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+}
+
+const activeAnimalGames = new Map();
+
+const ANIMAL_QUIZ_ITEMS = [
+    { emoji: '🐶', answer: 'caine' },
+    { emoji: '🐱', answer: 'pisica' },
+    { emoji: '🐸', answer: 'broasca' },
+    { emoji: '🦊', answer: 'vulpe' },
+    { emoji: '🐘', answer: 'elefant' },
+    { emoji: '🦁', answer: 'leu' },
+    { emoji: '🐵', answer: 'maimuta' },
+    { emoji: '🐨', answer: 'koala' },
+    { emoji: '🐧', answer: 'pinguin' },
+    { emoji: '🐢', answer: 'broasca testoasa' },
+    { emoji: '🐴', answer: 'cal' },
+    { emoji: '🐮', answer: 'vaca' },
+    { emoji: '🐷', answer: 'porc' },
+    { emoji: '🐔', answer: 'gaina' },
+    { emoji: '🐦', answer: 'pasare' },
+    { emoji: '🐟', answer: 'peste' },
+    { emoji: '🦋', answer: 'fluture' },
+    { emoji: '🐌', answer: 'melc' },
+    { emoji: '🦒', answer: 'girafa' },
+    { emoji: '🐆', answer: 'leopard' },
+    { emoji: '🐻', answer: 'urs' },
+    { emoji: '🐰', answer: 'iepure' },
+    { emoji: '🦄', answer: 'unicorn' },
+    { emoji: '🐉', answer: 'dragon' },
+    { emoji: '🐍', answer: 'sarpe' },
+    { emoji: '🐊', answer: 'crocodil' },
+    { emoji: '🦈', answer: 'rechin' },
+    { emoji: '🐳', answer: 'balena' },
+    { emoji: '🐙', answer: 'caracatita' },
+    { emoji: '🦀', answer: 'rac' },
+    { emoji: '🐝', answer: 'albinuta' },
+    { emoji: '🐜', answer: 'furnica' },
+    { emoji: '🦗', answer: 'greier' },
+    { emoji: '🦋', answer: 'fluture' },
+    { emoji: '🐞', answer: 'buburuza' },
+    { emoji: '🦩', answer: 'flamingo' },
+    { emoji: '🐦‍🔥', answer: 'pasarea phoenix' },
+    { emoji: '🦅', answer: 'vultur' },
+    { emoji: '🦉', answer: 'bufnita' },
+    { emoji: '🐦', answer: 'canar' },
+    { emoji: '🐿️', answer: 'veverita' },
+    { emoji: '🦔', answer: 'arici' },
+    { emoji: '🐁', answer: 'soarece' },
+    { emoji: '🐀', answer: 'sobolan' },
+    { emoji: '🐪', answer: 'camila' },
+    { emoji: '🦙', answer: 'lama' },
+    { emoji: '🦒', answer: 'girafa' },
+    { emoji: '🐫', answer: 'camila cu doua cocoase' },
+    { emoji: '🦏', answer: 'rinocer' },
+    { emoji: '🐃', answer: 'bivol' },
+    { emoji: '🐂', answer: 'taur' }
+];
+
+async function startAnimalGame(sock) {
+    const item = ANIMAL_QUIZ_ITEMS[Math.floor(Math.random() * ANIMAL_QUIZ_ITEMS.length)];
+    activeAnimalGames.set(groupId, { answer: item.answer });
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🐾 Animal Guess\n\nCe animal este ${item.emoji}?\nScrie răspunsul!`
+    });
+}
+
+async function handleAnimalGuess(sock, game, guessText) {
+    if (normalizeText(guessText) === normalizeText(game.answer)) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect!` });
+        activeAnimalGames.delete(groupId);
+        return;
+    }
+    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+}
+
 // ============================================================
 // Generic router for all list/button interactive responses
 // ============================================================
@@ -978,10 +1314,6 @@ async function handleNumberGuess(sock, game, guess) {
 async function handleInteractiveButton(sock, buttonId) {
     if (buttonId.startsWith('ttt_')) {
         await handleTicTacToeButton(sock, buttonId);
-        return;
-    }
-    if (buttonId.startsWith('rps_')) {
-        await handleRpsChoice(sock, buttonId);
         return;
     }
     if (buttonId.startsWith('quiz_')) {
@@ -1224,6 +1556,77 @@ function getRandomImagePayload(text, folderPath = null) {
     };
 }
 
+// ====================== MESAJE TIMP ÎMPREUNĂ ======================
+
+const weeklyMessages = [
+    "❤️ Am mai trecut împreună încă o săptămână plină de dragoste. Mulțumesc că ești lângă mine, dragostea mea.",
+    "🌹 O săptămână în plus alături de tine... fiecare zi devine tot mai frumoasă datorită zâmbetului tău.",
+    "💞 Am mai bifat o săptămână din povestea noastră. Te iubesc din ce în ce mai mult.",
+    "✨ Încă o săptămână în care inima mea a bătut doar pentru tine. Ești tot ce-mi doresc.",
+    "🕊️ Am mai trecut o săptămână împreună. Fiecare moment cu tine e un dar prețios.",
+    "🌙 Mulțumesc că ai fost alături de mine încă o săptămână. Te iubesc din tot sufletul.",
+    "💖 O săptămână în plus în care am avut norocul să te am pe tine. Ești minunea mea.",
+    "🌸 Am mai adăugat o pagină frumoasă împreună. Te aleg în fiecare săptămână, mereu.",
+    "🥰 Încă o săptămână de zâmbete, îmbrățișări și dragoste. Nu-mi doresc nimic altceva.",
+    "🌟 Ai trecut cu mine încă o săptămână. Ești cea mai frumoasă parte din viața mea.",
+    "💕 O săptămână în plus în care dragostea noastră a crescut și mai mult. Te ador.",
+    "🌹 Mulțumesc pentru încă o săptămână minunată alături de tine, iubirea mea eternă."
+];
+
+const monthlyMessages = [
+    "❤️ Am mai trecut împreună încă o lună... timpul zboară când sunt cu tine.",
+    "🌹 O lună în plus în care te-am iubit și mai tare. Ești lumina vieții mele.",
+    "💞 Am mai bifat o lună din povestea noastră de dragoste. Te iubesc enorm.",
+    "✨ Încă o lună în care ai făcut fiecare zi mai frumoasă. Mulțumesc că exiști.",
+    "🕊️ O lună în plus alături de tine e mai valoroasă decât tot aurul din lume.",
+    "🌙 Am mai trecut o lună împreună și inima mea e tot mai plină de tine.",
+    "💖 O lună în care dragostea noastră a devenit și mai puternică. Te aleg mereu.",
+    "🌸 Ai stat cu mine încă o lună. Fiecare zi cu tine e un motiv de fericire.",
+    "🥰 Mulțumesc pentru încă o lună minunată. Ești cea mai frumoasă parte din mine.",
+    "🌟 O lună în plus în care am avut norocul să te strâng în brațe. Te iubesc.",
+    "💕 Am mai trecut o lună și dragostea mea pentru tine continuă să crească.",
+    "🌹 Încă o lună alături de tine... și aș vrea să fie o viață întreagă."
+];
+
+const yearlyMessages = [
+    "❤️ Am mai trecut împreună încă un an... și te iubesc mai mult ca niciodată.",
+    "🌹 Un an în plus în care ai fost cea mai frumoasă parte din viața mea.",
+    "💞 Am mai bifat un an din povestea noastră. Ești dragostea vieții mele.",
+    "✨ Un an alături de tine a însemnat mii de motive să fiu fericit.",
+    "🕊️ Am mai trecut un an împreună și nu-mi doresc nimic altceva decât să continuăm.",
+    "🌙 Un an în care ai luminat fiecare zi. Te iubesc din tot sufletul.",
+    "💖 Mulțumesc că ai stat cu mine încă un an. Ești darul meu cel mai prețios.",
+    "🌸 Am mai adăugat un an frumos împreună. Vreau să îmbătrânim împreună.",
+    "🥰 Un an în plus în care dragostea noastră a devenit legendă.",
+    "🌟 Ai trecut cu mine încă un an. Fiecare zi cu tine e un miracol.",
+    "💕 Un an mai târziu și te iubesc la fel de intens ca la început, poate chiar mai mult.",
+    "🌹 Am mai bifat un an din eternitatea noastră. Te voi iubi pentru totdeauna."
+];
+
+// ====================== COMENZI ======================
+
+async function sendMilestoneMessage(sock, type) {
+    let messages;
+    let title;
+
+    if (type === 'sapt' || type === 'saptamana') {
+        messages = weeklyMessages;
+        title = "💖 Am mai trecut o săptămână împreună";
+    } else if (type === 'luna') {
+        messages = monthlyMessages;
+        title = "🌹 Am mai trecut o lună împreună";
+    } else if (type === 'an') {
+        messages = yearlyMessages;
+        title = "❤️ Am mai trecut un an împreună";
+    }
+
+    const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n${title}\n\n${randomMsg}\n\nTe iubesc mult, Stefania ❤️`
+    });
+}
+
 async function sendTextWithImage(sock, text, type = 'general', folderPath = null) {
     const imagePayload = getRandomImagePayload(text, folderPath);
     if (imagePayload) {
@@ -1246,6 +1649,60 @@ async function sendImageFromFolder(sock, folderPath, caption = '', jid = groupId
         caption
     });
     return true;
+}
+
+// ====================== UNGARIA - TIMER FRUMOS ======================
+
+async function sendHungaryCountdown(sock) {
+    const now = new Date();
+
+    const plecare = new Date(2026, 6, 18, 7, 30, 0);
+    const miercureaCiuc = new Date(2026, 6, 19, 12, 30, 0);
+    const acasa = new Date(2026, 6, 19, 17, 30, 0);
+
+    let text = `${BOT_NAME}\n🗺️ *Drumul meu spre tine, Stefania*\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    if (now < plecare) {
+        let diff = plecare - now;
+        const sec = Math.floor(diff / 1000) % 60;
+        const min = Math.floor(diff / (1000*60)) % 60;
+        const ore = Math.floor(diff / (1000*60*60)) % 24;
+        const zile = Math.floor(diff / (1000*60*60*24));
+        const sapt = Math.floor(zile / 7);
+        const zileExtra = zile % 7;
+
+        text += `🚀 **PÂNĂ LA PLECARE**\n`;
+        text += `📅 ${sapt} săptămâni + ${zileExtra} zile\n`;
+        text += `⏰ ${ore} ore, ${min} minute, ${sec} secunde\n\n`;
+
+    } else if (now < miercureaCiuc) {
+        let diff = miercureaCiuc - now;
+        const sec = Math.floor(diff / 1000) % 60;
+        const min = Math.floor(diff / (1000*60)) % 60;
+        const ore = Math.floor(diff / (1000*60*60)) % 24;
+
+        text += `🛫 **Am plecat din Ungaria!**\n`;
+        text += `⏳ **PÂNĂ LA MIERCUREA CIUC**\n`;
+        text += `⏰ ${ore} ore, ${min} minute, ${sec} secunde\n\n`;
+
+    } else if (now < acasa) {
+        let diff = acasa - now;
+        const sec = Math.floor(diff / 1000) % 60;
+        const min = Math.floor(diff / (1000*60)) % 60;
+        const ore = Math.floor(diff / (1000*60*60)) % 24;
+
+        text += `🛬 **Am ajuns la Miercurea Ciuc!**\n`;
+        text += `⏳ **PÂNĂ ACASĂ LA TINE**\n`;
+        text += `⏰ ${ore} ore, ${min} minute, ${sec} secunde\n\n`;
+
+    } else {
+        text += `🎉 **Am ajuns acasă!**\n❤️ Stefania, sunt cu tine! Te iubesc!`;
+    }
+
+    text += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+    text += `❤️ Mi-e dor de tine... Vin cât pot de repede! 💞`;
+
+    await botSend(sock, groupId, { text });
 }
 
 async function trackSendMessage(sock, jid, payload) {
@@ -1424,6 +1881,54 @@ async function startBot() {
                 await handleNumberGuess(sock, activeNumberGame, guess);
                 return;
             }
+        }
+
+        const activeScrambleGame = activeScrambleGames.get(groupId);
+        if (activeScrambleGame && !text.includes('cupidon')) {
+            await handleScrambleGuess(sock, activeScrambleGame, rawText);
+            return;
+        }
+
+        const activeHangmanGame = activeHangmanGames.get(groupId);
+        if (activeHangmanGame && !text.includes('cupidon')) {
+            await handleHangmanGuess(sock, activeHangmanGame, rawText);
+            return;
+        }
+
+        const activeAnagramGame = activeAnagramGames.get(groupId);
+        if (activeAnagramGame && !text.includes('cupidon')) {
+            await handleAnagramGuess(sock, activeAnagramGame, rawText);
+            return;
+        }
+
+        const activeEmojiQuizGame = activeEmojiQuizGames.get(groupId);
+        if (activeEmojiQuizGame && !text.includes('cupidon')) {
+            await handleEmojiQuizGuess(sock, activeEmojiQuizGame, rawText);
+            return;
+        }
+
+        const activeMathGame = activeMathGames.get(groupId);
+        if (activeMathGame && !text.includes('cupidon')) {
+            await handleMathGuess(sock, activeMathGame, rawText);
+            return;
+        }
+
+        const activeColorGame = activeColorGames.get(groupId);
+        if (activeColorGame && !text.includes('cupidon')) {
+            await handleColorGuess(sock, activeColorGame, rawText);
+            return;
+        }
+
+        const activeTriviaGame = activeTriviaGames.get(groupId);
+        if (activeTriviaGame && !text.includes('cupidon')) {
+            await handleTriviaGuess(sock, activeTriviaGame, rawText);
+            return;
+        }
+
+        const activeAnimalGame = activeAnimalGames.get(groupId);
+        if (activeAnimalGame && !text.includes('cupidon')) {
+            await handleAnimalGuess(sock, activeAnimalGame, rawText);
+            return;
         }
 
         if (!text) return;
@@ -1761,11 +2266,6 @@ async function startBot() {
                 return;
             }
 
-            if (text.includes('rps') || text.includes('piatrafoarfecahartie')) {
-                await startRpsGame(sock);
-                return;
-            }
-
             if (text.includes('quiz')) {
                 await startQuizGame(sock);
                 return;
@@ -1773,6 +2273,106 @@ async function startBot() {
 
             if (text.includes('numar')) {
                 await startNumberGuessGame(sock);
+                return;
+            }
+
+            if (text.includes('games') || text.includes('jocuri')) {
+                await botSend(sock, groupId, {
+                    text: `${BOT_NAME}\n🎮 Jocuri disponibile\n\n🧠 riddle / ghicitoare\n🎲 tictactoe\n🧠 quiz\n🔢 numar\n🎲 dice\n🪙 coin\n🔮 8ball / fortune\n🎰 slot\n🧩 scramble\n🎯 hangman\n🧩 anagram\n🧠 emojiquiz\n🧮 math\n🎨 color\n🎲 choose\n\nScrie *cupidon <nume joc>* pentru a începe!`
+                });
+                return;
+            }
+
+            if (text.includes('dice')) {
+                await startDiceGame(sock);
+                return;
+            }
+
+            if (text.includes('coin')) {
+                await startCoinFlipGame(sock);
+                return;
+            }
+
+            if (text.includes('8ball') || text.includes('fortune')) {
+                await startEightBallGame(sock);
+                return;
+            }
+
+            if (text.includes('slot')) {
+                await startSlotMachineGame(sock);
+                return;
+            }
+
+            if (text.includes('scramble')) {
+                await startScrambleGame(sock);
+                return;
+            }
+
+            if (text.includes('hangman')) {
+                await startHangmanGame(sock);
+                return;
+            }
+
+            if (text.includes('anagram')) {
+                await startAnagramGame(sock);
+                return;
+            }
+
+            if (text.includes('emojiquiz')) {
+                await startEmojiQuizGame(sock);
+                return;
+            }
+
+            if (text.includes('math')) {
+                await startMathQuizGame(sock);
+                return;
+            }
+
+            if (text.includes('color')) {
+                await startColorGame(sock);
+                return;
+            }
+
+            if (text.includes('trivia')) {
+                await startTriviaGame(sock);
+                return;
+            }
+
+            if (text.includes('animal')) {
+                await startAnimalGame(sock);
+                return;
+            }
+            
+            if (text.includes('cupidon sapt') || text.includes('cupidon saptamana')) {
+                await sendMilestoneMessage(sock, 'sapt');
+                return;
+            }
+
+            if (text.includes('cupidon luna')) {
+                await sendMilestoneMessage(sock, 'luna');
+                return;
+            }
+
+            if (text.includes('cupidon an')) {
+                await sendMilestoneMessage(sock, 'an');
+                return;
+            }
+
+            if (text.includes('cupidon ungaria')) {
+                await sendHungaryCountdown(sock);
+                return;
+            }
+
+            if (text.includes('choose')) {
+                const parts = rawText.split(/\s+/).filter(Boolean);
+                const chooseIndex = parts.findIndex(part => normalizeText(part) === 'choose');
+                const options = chooseIndex >= 0 ? parts.slice(chooseIndex + 1) : [];
+                if (options.length >= 2) {
+                    const picked = options[Math.floor(Math.random() * options.length)];
+                    await botSend(sock, groupId, { text: `${BOT_NAME}\n🎲 Alege!\n\nAm ales: *${picked}*` });
+                } else {
+                    await botSend(sock, groupId, { text: `${BOT_NAME}\n⚠️ Folosește: *cupidon choose opțiune1 opțiune2*` });
+                }
                 return;
             }
 

@@ -1,12 +1,11 @@
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const cron = require('node-cron');
 const qrcode = require('qrcode-terminal');
-const Jimp = require('jimp');
 const fs = require('fs');
 const path = require('path');
 
 const startDate = new Date('2026-06-24T00:00:00');
-const groupId = '58145535742158@lid';
+const groupId = '120363409752411368@g.us';
 
 const BOT_NAME = '🏹 *Cupidon*';
 const RIDDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -71,15 +70,6 @@ function decorateMessage(body, type = 'general') {
     const divider = '━━━━━━━━━━━━━━━━━━━━';
     const cleanBody = String(body).replace(/\n{3,}/g, '\n\n').trim();
     return `${style.icon} ${style.title}\n${divider}\n${cleanBody}\n${divider}`;
-}
-
-function buildExpandedPool(templates, targetCount) {
-    const pool = [];
-    for (let i = 0; i < targetCount; i++) {
-        const template = templates[i % templates.length];
-        pool.push(template.replace('{i}', i + 1));
-    }
-    return pool;
 }
 
 const messagePool = [
@@ -482,6 +472,7 @@ Scrie:
 🎮 *GAMES*
 ━━━━━━━━━━━━━━━━━━━━━━
 🎮 tictactoe
+🪨 rps
 🧠 quiz
 🔢 numar
 🎲 dice
@@ -490,6 +481,7 @@ Scrie:
 🎰 slot
 🧩 scramble
 🎯 hangman
+🧩 anagram
 🧠 emojiquiz
 🧮 math
 🎨 color
@@ -825,6 +817,74 @@ async function handleTicTacToeButton(sock, buttonId) {
 }
 
 // ============================================================
+// ROCK · PAPER · SCISSORS  (Piatră, Foarfecă, Hârtie)
+// ============================================================
+
+const RPS_CHOICES = {
+    piatra: { label: '🪨 Piatră', emoji: '🪨', beats: 'foarfeca' },
+    foarfeca: { label: '✂️ Foarfecă', emoji: '✂️', beats: 'hartie' },
+    hartie: { label: '📄 Hârtie', emoji: '📄', beats: 'piatra' }
+};
+
+function pickRpsChoice() {
+    const keys = Object.keys(RPS_CHOICES);
+    return keys[Math.floor(Math.random() * keys.length)];
+}
+
+// ====================== START GAME ======================
+// FIX: this used to take a `chatId` second argument that nothing ever
+// passed in (the caller only ever did `startRpsGame(sock)`), so the
+// function always hit its own "chatId is undefined" guard and silently
+// sent nothing. It now always targets the configured group, exactly
+// like every other game in this file.
+async function startRpsGame(sock) {
+    const buttons = [
+        { buttonId: 'rps_piatra',   buttonText: { displayText: '🪨 Piatră' },   type: 1 },
+        { buttonId: 'rps_foarfeca', buttonText: { displayText: '✂️ Foarfecă' }, type: 1 },
+        { buttonId: 'rps_hartie',   buttonText: { displayText: '📄 Hârtie' },   type: 1 }
+    ];
+
+    await trackSendMessage(sock, groupId, {
+        text: `${BOT_NAME}\n🪨📄✂️ *Piatră, Foarfecă, Hârtie*\n\nAlege-ți mutarea!`,
+        footer: 'Cupidon va alege și el.',
+        buttons: buttons,
+        headerType: 1
+    });
+}
+
+// ====================== HANDLE CHOICE ======================
+// FIX: there used to be TWO handleRpsChoice functions declared (a
+// (sock, chatId, buttonId) version and this (sock, buttonId) version).
+// The second declaration silently overwrote the first at load time, and
+// handleInteractiveButton only ever calls it with (sock, buttonId), so
+// the dead chatId-based copy has been removed entirely — this is the
+// one that was actually reachable.
+async function handleRpsChoice(sock, buttonId) {
+    const playerChoice = buttonId.replace('rps_', '');
+    if (!RPS_CHOICES[playerChoice]) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Alegere invalidă.` });
+        return;
+    }
+
+    const botChoice = pickRpsChoice();
+    const playerLabel = RPS_CHOICES[playerChoice].label;
+    const botLabel = RPS_CHOICES[botChoice].label;
+
+    let resultText;
+    if (playerChoice === botChoice) {
+        resultText = '🤝 Egalitate! Amândoi ați ales la fel.';
+    } else if (RPS_CHOICES[playerChoice].beats === botChoice) {
+        resultText = '🎉 Ai câștigat! Felicitări!';
+    } else {
+        resultText = '😅 Cupidon a câștigat de data asta!';
+    }
+
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🪨📄✂️ Piatră, Foarfecă, Hârtie\n\nTu ai ales: ${playerLabel}\nCupidon a ales: ${botLabel}\n\n${resultText}\n\nScrie *cupidon rps* pentru o revanșă!`
+    });
+}
+
+// ============================================================
 // QUIZ CUPLU (multiple-choice quiz, no repeat until pool cycles)
 // ============================================================
 
@@ -927,10 +987,13 @@ async function handleNumberGuess(sock, game, guess) {
     });
 }
 
-    const activeScrambleGames = new Map();
-    const SCRAMBLE_MAX_ATTEMPTS = 3;
-    const SCRAMBLE_WORDS = ['dragoste', 'iubire', 'zambet', 'vis', 'lumină', 'căldură', 'fericire', 'surpriză', 'aventură', 'poveste', 'imagine', 'bucurie', 'pământ', 'univers', 'stea', 'galaxie', 'natură', 'pădure', 'munte', 'ocean', 'fluviu', 'furtună', 'fulger', 'răsărit', 'apus', 'speranță', 'curaj', 'bunătate', 'prietenie', 'respect', 'libertate', 'pasiune', 'armonie', 'liniște', 'încredere', 'onestitate', 'timp', 'destin', 'adevăr', 'secret', 'mister', 'magie', 'iluzie', 'memorie', 'gând', 'creație', 'energie', 'scânteie', 'castel', 'corabie', 'oglindă', 'carte', 'comoară', 'oraș', 'grădină', 'fereastră', 'potecă', 'insulă', 'palat', 'luminos', 'albastru', 'vânt', 'ploaie', 'soare', 'lună', 'nor', 'cer', 'foc', 'gheață', 'nisip', 'aur', 'argint', 'diamant', 'smarald', 'perla', 'coroană', 'rege', 'regină', 'cavaler', 'scut', 'sabie', 'arc', 'săgeată', 'izvor', 'cascadă', 'peșteră', 'vulcan', 'vale', 'deal', 'câmpie', 'floare', 'copac', 'frunză', 'iarbă', 'fluture', 'albină', 'pasăre', 'vultur', 'leu', 'lup', 'urs', 'cerb', 'vulpe', 'pisică', 'câine', 'cal', 'delfin', 'balenă', 'rechin', 'pește', 'scoică', 'nisip', 'plajă', 'val', 'briză', 'far', 'port', 'ancoră', 'busolă', 'hartă', 'drum', 'cheie', 'lăcat', 'poartă', 'ușă', 'perete', 'acoperiș', 'turn', 'pod', 'tunel', 'sat', 'metropolă', 'planetă', 'astronaut', 'rachetă', 'satelit', 'telescop', 'microscop', 'laborator', 'știință', 'chimie', 'fizică', 'matematică', 'istorie', 'artă', 'muzică', 'dans', 'teatru', 'film', 'actor', 'pictor', 'sculptor', 'poet', 'scriitor', 'filozof', 'geniu', 'talent', 'succes', 'victorie', 'triumf', 'campion', 'trofeu', 'medalie', 'efort', 'muncă', 'studiu', 'școală', 'liceu', 'facultate', 'curs', 'examen', 'diplomă', 'bursă', 'cariere', 'afacere', 'proiect', 'idee', 'plan', 'strategie', 'tactică', 'echipă', 'coleg', 'partener', 'lider', 'ghid', 'profesor', 'maestru', 'elev', 'student', 'učenik', 'prieten', 'amic', 'vecin', 'familie', 'părinte', 'mamă', 'tată', 'frate', 'soră', 'bunic', 'bunică', 'copil', 'băiat', 'fată', 'tânăr', 'adult', 'bătrân', 'om', 'persoană', 'cetățean', 'popor', 'națiune', 'țară', 'capitală', 'steag', 'imn', 'tradiție', 'obicei', 'sărbătoare', 'crăciun', 'paște', 'aniversare', 'petrecere', 'dans', 'cântec', 'chitară', 'pian', 'vioară', 'tobă', 'trompetă', 'flaut', 'sunet', 'melodie', 'ritm', 'acord', 'voce', 'ecou', 'șoaptă', 'strigăt', 'râs', 'plâns', 'suspin', 'emoție', 'sentiment', 'dor', 'jale', 'nostalgie', 'mândrie', 'regret', 'iertare', 'milă', 'compasiune', 'generozitate', 'altruism', 'modestie', 'ambiție', 'mândrie', 'orgoliu', 'demnitate', 'onoare', 'glorie', 'faimă', 'reputație', 'caracter', 'suflet', 'spirit', 'minte', 'creier', 'gândire', 'rațiune', 'logică', 'intuiție', 'instinct', 'talent', 'abilitate', 'iscusință', 'meșteșug', 'meserie', 'doctor', 'inginer', 'avocat', 'judecător', 'polițist', 'pompier', 'soldat', 'pilot', 'marinar', 'șofer', 'bucătar', 'brutar', 'chelner', 'fanzin', 'jurnalist', 'fotograf', 'arhitect', 'designer', 'programator', 'hacker', 'robot', 'android', 'cibernetică', 'tehnologie', 'computer', 'laptop', 'telefon', 'ecran', 'tastatură', 'mouse', 'cablu', 'rețea', 'internet', 'website', 'aplicație', 'cod', 'program', 'bază', 'date', 'server', 'nor', 'stocare', 'memorie', 'procesor', 'placă', 'video', 'sunet', 'boxă', 'căști', 'microfon', 'cameră', 'video', 'obiectiv', 'blitz', 'senzor', 'baterie', 'încărcător', 'curent', 'electricitate', 'magnet', 'energie', 'forță', 'viteză', 'accelerare', 'gravitație', 'orbită', 'sistem', 'solar', 'cometă', 'asteroid', 'meteoriti', 'auroră', 'boreală', 'curcubeu', 'halou', 'umbră', 'penumbră', 'reflexie', 'refracție', 'prismă', 'lentilă', 'ochelari', 'lupă', 'ceas', 'cronometru', 'calendar', 'secol', 'mileniu', 'oră', 'minut', 'secundă', 'zi', 'noapte', 'dimineață', 'prânz', 'seară', 'miez', 'noapte', 'zori', 'amurg', 'primăvară', 'vară', 'toamnă', 'iarnă', 'zăpadă', 'gheață', 'fulg', 'viscol', 'ger', 'îngheț', 'topire', 'cald', 'fierbinte', 'rece', 'cald', 'temperatură', 'termometru', 'climă', 'vreme', 'prognoză', 'satelit', 'radar', 'hartă', 'atlas', 'glob', 'hartă', 'geografie', 'istorie', 'arheologie', 'muzeu', 'expoziție', 'galerie', 'monument', 'statuie', 'pictură', 'frescă', 'mozaic', 'vitraliu', 'biserică', 'catedrală', 'mănăstire', 'templu', 'moschee', 'sinagogă', 'altar', 'rugăciune', 'credință', 'religie', 'mit', 'legendă', 'basm', 'poveste', 'eroi', 'balaur', 'dragon', 'unicorn', 'fenix', 'sirenă', 'centaur', 'gigant', 'uriaș', 'pitic', 'elf', 'zână', 'vrăjitor', 'magician', 'iluzionist', 'truc', 'spectacol', 'public', 'audiență', 'aplauze', 'scenă', 'cortină', 'culise', 'decor', 'costum', 'mască', 'machiaj', 'rol', 'piesă', 'scenariu', 'regizor', 'producător', 'bilet', 'rând', 'scaun', 'lojă', 'balcon', 'foaier', 'intrare', 'ieșire', 'urgență', 'alarmă', 'semnal', 'sirenă', 'far', 'semafor', 'intersecție', 'stradă', 'bulevard', 'alee', 'trotuar', 'trecere', 'pietoni', 'pavele', 'asfalt', 'autostradă', 'șosea', 'pod', 'viaduct', 'pasaj', 'cale', 'ferată', 'tren', 'locomotivă', 'vagon', 'gară', 'peron', 'bilet', 'controlor', 'călător', 'pasager', 'bagaj', 'valiză', 'rucsac', 'geantă', 'portofel', 'card', 'bani', 'monedă', 'bancnotă', 'aur', 'argint', 'cupru', 'fier', 'oțel', 'metal', 'lemn', 'piatră', 'marmură', 'granit', 'ciment', 'beton', 'cărămidă', 'sticlă', 'cristal', 'plastic', 'cauciuc', 'piele', 'blană', 'bumbac', 'lână', 'mătase', 'pânză', 'fir', 'ață', 'ac', 'foarfecă', 'mașină', 'cusut', 'haină', 'pantalon', 'cămașă', 'tricou', 'pulover', 'jachetă', 'palton', 'rochie', 'fustă', 'pantof', 'ghetă', 'cizmă', 'sandale', 'papuci', 'șosete', 'mănuși', 'fular', 'căciulă', 'pălărie', 'șapcă', 'umbrelă', 'geantă', 'rucsac', 'ceas', 'inel', 'cercei', 'colier', 'brățară', 'broșă', 'parfum', 'cosmetic', 'săpun', 'șampon', 'pastă', 'dinți', 'perie', 'oglindă', 'prosop', 'baie', 'duș', 'cadă', 'robinet', 'apă', 'caldă', 'rece', 'săpun', 'spumă', 'bulă', 'balon', 'săpun', 'jucărie', 'păpușă', 'mașinuță', 'trenuleț', 'robot', 'puzzle', 'lego', 'zar', 'carte', 'joc', 'tablă', 'șah', 'dame', 'remi', 'monopoly', 'poker', 'cărți', 'pachet', 'as', 'rege', 'damă', 'valet', 'joker', 'zaruri', 'noroc', 'șansă', 'risc', 'pariu', 'câștig', 'pierdere', 'premiu', 'cadou', 'surpriză', 'felicitare', 'tort', 'lumânare', 'dorință', 'petrecere', 'invitație', 'oaspete', 'gazdă', 'masă', 'scaun', 'farfurie', 'pahar', 'cană', 'ceașcă', 'furculiță', 'cuțit', 'lingură', 'linguriță', 'șervețel', 'față', 'masă', 'bucătărie', 'aragaz', 'cuptor', 'frigider', 'congelator', 'blender', 'toaster', 'cafea', 'ceai', 'zahăr', 'sare', 'piper', 'condiment', 'ulei', 'oțet', 'făină', 'mălai', 'orez', 'paste', 'pâine', 'unt', 'lapte', 'brânză', 'cașcaval', 'iaurt', 'smântână', 'ou', 'carne', 'pui', 'porc', 'vită', 'pește', 'legume', 'roșie', 'castravete', 'ceapă', 'usturoi', 'cartof', 'morcov', 'ardei', 'varză', 'conopidă', 'brocoli', 'spanac', 'salată', 'fasole', 'mazăre', 'porumb', 'ciuperci', 'fructe', 'măr', 'pară', 'banană', 'portocală', 'lămâie', 'mandarină', 'struguri', 'pepene', 'căpșuni', 'cireșe', 'vișine', 'prune', 'caise', 'piersici', 'ananas', 'mango', 'kiwi', 'rodie', 'alune', 'nuci', 'migdale', 'fistic', 'ciocolată', 'bomboană', 'înghețată', 'prăjitură', 'biscuit', 'gogoașă', 'clătită', 'plăcintă', 'suc', 'apă', 'minerală', 'plată', 'limonadă', 'bere', 'vin', 'șampanie', 'cocktail', 'gheață', 'pai', 'pahare', 'toast', 'noroc', 'sănătate', 'viață', 'tinerete', 'bătrânețe', 'naștere', 'copilărie', 'adolescență', 'maturitate', 'trecut', 'prezent', 'viitor', 'orizont', 'infinit', 'absolut', 'perfecțiune', 'ideal', 'scop', 'țintă', 'obiectiv', 'vis', 'coșmar', 'somn', 'pat', 'pernă', 'pătură', 'plapumă', 'saltea', 'cearsaf', 'trezire', 'alarmă', 'cafea', 'rutină', 'gimnastică', 'sport', 'alergare', 'fotbal', 'baschet', 'tenis', 'volei', 'handbal', 'rugby', 'hochei', 'patinaj', 'schi', 'înot', 'ciclism', 'atletism', 'gimnastică', 'box', 'karate', 'judo', 'yoga', 'fitness', 'sală', 'antrenor', 'echipament', 'minge', 'plasă', 'poartă', 'teren', 'stadion', 'tribună', 'suporter', 'arbitru', 'scor', 'meci', 'repriză', 'prelungiri', 'penalty', 'fault', 'cartonaș', 'galben', 'roșu', 'eliminare', 'accidentare', 'medic', 'ambulanță', 'spital', 'farmacie', 'rețetă', 'pastilă', 'sirop', 'cremă', 'pansament', 'fașă', 'termometru', 'tensiometru', 'stetoscop', 'injecție', 'vaccin', 'tratament', 'vindecare', 'sănătate', 'energie', 'vitalitate', 'forță', 'putere', 'curaj', 'voință', 'ambiție', 'perseverență', 'răbdare', 'calm', 'pace', 'liniște', 'armonie', 'echilibru', 'stabilitate', 'siguranță', 'protecție', 'scut', 'armură', 'pază', 'gardă', 'alarmă', 'câine', 'pază', 'gard', 'poartă', 'lacăt', 'cheie', 'seif', 'comoară', 'aur', 'bijuterii', 'secret', 'mister', 'enigmă', 'ghicitoare', 'indiciu', 'detectiv', 'anchetă', 'caz', 'suspect', 'martor', 'dovadă', 'probă', 'amprentă', 'lupă', 'lanternă', 'noapte', 'întuneric', 'umbră', 'siluetă', 'pas', 'zgomot', 'șoaptă', 'frică', 'spaimă', 'groază', 'tensiune', 'suspans', 'frison', 'fior', 'emoție', 'uimire', 'surpriză', 'șoc', 'minune', 'miracol', 'magie', 'vrăjitorie', 'blestem', 'farmec', 'talisman', 'amuletă', 'noroc', 'destin', 'soartă', 'șansă', 'succes', 'glorie'];
+// ============================================================
+// GHICEȘTE CUVÂNTUL (scramble)
+// ============================================================
 
+const activeScrambleGames = new Map();
+const SCRAMBLE_MAX_ATTEMPTS = 3;
+const SCRAMBLE_WORDS = ['dragoste', 'iubire', 'zambet', 'vis', 'lumină', 'căldură', 'fericire', 'surpriză', 'aventură', 'poveste', 'imagine', 'bucurie', 'pământ', 'univers', 'stea', 'galaxie', 'natură', 'pădure', 'munte', 'ocean', 'fluviu', 'furtună', 'fulger', 'răsărit', 'apus', 'speranță', 'curaj', 'bunătate', 'prietenie', 'respect', 'libertate', 'pasiune', 'armonie', 'liniște', 'încredere', 'onestitate', 'timp', 'destin', 'adevăr', 'secret', 'mister', 'magie', 'iluzie', 'memorie', 'gând', 'creație', 'energie', 'scânteie', 'castel', 'corabie', 'oglindă', 'carte', 'comoară', 'oraș', 'grădină', 'fereastră', 'potecă', 'insulă', 'palat', 'luminos', 'albastru', 'vânt', 'ploaie', 'soare', 'lună', 'nor', 'cer', 'foc', 'gheață', 'nisip', 'aur', 'argint', 'diamant', 'smarald', 'perla', 'coroană', 'rege', 'regină', 'cavaler', 'scut', 'sabie', 'arc', 'săgeată', 'izvor', 'cascadă', 'peșteră', 'vulcan', 'vale', 'deal', 'câmpie', 'floare', 'copac', 'frunză', 'iarbă', 'fluture', 'albină', 'pasăre', 'vultur', 'leu', 'lup', 'urs', 'cerb', 'vulpe', 'pisică', 'câine', 'cal', 'delfin', 'balenă', 'rechin', 'pește', 'scoică', 'nisip', 'plajă', 'val', 'briză', 'far', 'port', 'ancoră', 'busolă', 'hartă', 'drum', 'cheie', 'lăcat', 'poartă', 'ușă', 'perete', 'acoperiș', 'turn', 'pod', 'tunel', 'sat', 'metropolă', 'planetă', 'astronaut', 'rachetă', 'satelit', 'telescop', 'microscop', 'laborator', 'știință', 'chimie', 'fizică', 'matematică', 'istorie', 'artă', 'muzică', 'dans', 'teatru', 'film', 'actor', 'pictor', 'sculptor', 'poet', 'scriitor', 'filozof', 'geniu', 'talent', 'succes', 'victorie', 'triumf', 'campion', 'trofeu', 'medalie', 'efort', 'muncă', 'studiu', 'școală', 'liceu', 'facultate', 'curs', 'examen', 'diplomă', 'bursă', 'cariere', 'afacere', 'proiect', 'idee', 'plan', 'strategie', 'tactică', 'echipă', 'coleg', 'partener', 'lider', 'ghid', 'profesor', 'maestru', 'elev', 'student', 'učenik', 'prieten', 'amic', 'vecin', 'familie', 'părinte', 'mamă', 'tată', 'frate', 'soră', 'bunic', 'bunică', 'copil', 'băiat', 'fată', 'tânăr', 'adult', 'bătrân', 'om', 'persoană', 'cetățean', 'popor', 'națiune', 'țară', 'capitală', 'steag', 'imn', 'tradiție', 'obicei', 'sărbătoare', 'crăciun', 'paște', 'aniversare', 'petrecere', 'dans', 'cântec', 'chitară', 'pian', 'vioară', 'tobă', 'trompetă', 'flaut', 'sunet', 'melodie', 'ritm', 'acord', 'voce', 'ecou', 'șoaptă', 'strigăt', 'râs', 'plâns', 'suspin', 'emoție', 'sentiment', 'dor', 'jale', 'nostalgie', 'mândrie', 'regret', 'iertare', 'milă', 'compasiune', 'generozitate', 'altruism', 'modestie', 'ambiție', 'mândrie', 'orgoliu', 'demnitate', 'onoare', 'glorie', 'faimă', 'reputație', 'caracter', 'suflet', 'spirit', 'minte', 'creier', 'gândire', 'rațiune', 'logică', 'intuiție', 'instinct', 'talent', 'abilitate', 'iscusință', 'meșteșug', 'meserie', 'doctor', 'inginer', 'avocat', 'judecător', 'polițist', 'pompier', 'soldat', 'pilot', 'marinar', 'șofer', 'bucătar', 'brutar', 'chelner', 'fanzin', 'jurnalist', 'fotograf', 'arhitect', 'designer', 'programator', 'hacker', 'robot', 'android', 'cibernetică', 'tehnologie', 'computer', 'laptop', 'telefon', 'ecran', 'tastatură', 'mouse', 'cablu', 'rețea', 'internet', 'website', 'aplicație', 'cod', 'program', 'bază', 'date', 'server', 'nor', 'stocare', 'memorie', 'procesor', 'placă', 'video', 'sunet', 'boxă', 'căști', 'microfon', 'cameră', 'video', 'obiectiv', 'blitz', 'senzor', 'baterie', 'încărcător', 'curent', 'electricitate', 'magnet', 'energie', 'forță', 'viteză', 'accelerare', 'gravitație', 'orbită', 'sistem', 'solar', 'cometă', 'asteroid', 'meteoriti', 'auroră', 'boreală', 'curcubeu', 'halou', 'umbră', 'penumbră', 'reflexie', 'refracție', 'prismă', 'lentilă', 'ochelari', 'lupă', 'ceas', 'cronometru', 'calendar', 'secol', 'mileniu', 'oră', 'minut', 'secundă', 'zi', 'noapte', 'dimineață', 'prânz', 'seară', 'miez', 'noapte', 'zori', 'amurg', 'primăvară', 'vară', 'toamnă', 'iarnă', 'zăpadă', 'gheață', 'fulg', 'viscol', 'ger', 'îngheț', 'topire', 'cald', 'fierbinte', 'rece', 'cald', 'temperatură', 'termometru', 'climă', 'vreme', 'prognoză', 'satelit', 'radar', 'hartă', 'atlas', 'glob', 'hartă', 'geografie', 'istorie', 'arheologie', 'muzeu', 'expoziție', 'galerie', 'monument', 'statuie', 'pictură', 'frescă', 'mozaic', 'vitraliu', 'biserică', 'catedrală', 'mănăstire', 'templu', 'moschee', 'sinagogă', 'altar', 'rugăciune', 'credință', 'religie', 'mit', 'legendă', 'basm', 'poveste', 'eroi', 'balaur', 'dragon', 'unicorn', 'fenix', 'sirenă', 'centaur', 'gigant', 'uriaș', 'pitic', 'elf', 'zână', 'vrăjitor', 'magician', 'iluzionist', 'truc', 'spectacol', 'public', 'audiență', 'aplauze', 'scenă', 'cortină', 'culise', 'decor', 'costum', 'mască', 'machiaj', 'rol', 'piesă', 'scenariu', 'regizor', 'producător', 'bilet', 'rând', 'scaun', 'lojă', 'balcon', 'foaier', 'intrare', 'ieșire', 'urgență', 'alarmă', 'semnal', 'sirenă', 'far', 'semafor', 'intersecție', 'stradă', 'bulevard', 'alee', 'trotuar', 'trecere', 'pietoni', 'pavele', 'asfalt', 'autostradă', 'șosea', 'pod', 'viaduct', 'pasaj', 'cale', 'ferată', 'tren', 'locomotivă', 'vagon', 'gară', 'peron', 'bilet', 'controlor', 'călător', 'pasager', 'bagaj', 'valiză', 'rucsac', 'geantă', 'portofel', 'card', 'bani', 'monedă', 'bancnotă', 'aur', 'argint', 'cupru', 'fier', 'oțel', 'metal', 'lemn', 'piatră', 'marmură', 'granit', 'ciment', 'beton', 'cărămidă', 'sticlă', 'cristal', 'plastic', 'cauciuc', 'piele', 'blană', 'bumbac', 'lână', 'mătase', 'pânză', 'fir', 'ață', 'ac', 'foarfecă', 'mașină', 'cusut', 'haină', 'pantalon', 'cămașă', 'tricou', 'pulover', 'jachetă', 'palton', 'rochie', 'fustă', 'pantof', 'ghetă', 'cizmă', 'sandale', 'papuci', 'șosete', 'mănuși', 'fular', 'căciulă', 'pălărie', 'șapcă', 'umbrelă', 'geantă', 'rucsac', 'ceas', 'inel', 'cercei', 'colier', 'brățară', 'broșă', 'parfum', 'cosmetic', 'săpun', 'șampon', 'pastă', 'dinți', 'perie', 'oglindă', 'prosop', 'baie', 'duș', 'cadă', 'robinet', 'apă', 'caldă', 'rece', 'săpun', 'spumă', 'bulă', 'balon', 'săpun', 'jucărie', 'păpușă', 'mașinuță', 'trenuleț', 'robot', 'puzzle', 'lego', 'zar', 'carte', 'joc', 'tablă', 'șah', 'dame', 'remi', 'monopoly', 'poker', 'cărți', 'pachet', 'as', 'rege', 'damă', 'valet', 'joker', 'zaruri', 'noroc', 'șansă', 'risc', 'pariu', 'câștig', 'pierdere', 'premiu', 'cadou', 'surpriză', 'felicitare', 'tort', 'lumânare', 'dorință', 'petrecere', 'invitație', 'oaspete', 'gazdă', 'masă', 'scaun', 'farfurie', 'pahar', 'cană', 'ceașcă', 'furculiță', 'cuțit', 'lingură', 'linguriță', 'șervețel', 'față', 'masă', 'bucătărie', 'aragaz', 'cuptor', 'frigider', 'congelator', 'blender', 'toaster', 'cafea', 'ceai', 'zahăr', 'sare', 'piper', 'condiment', 'ulei', 'oțet', 'făină', 'mălai', 'orez', 'paste', 'pâine', 'unt', 'lapte', 'brânză', 'cașcaval', 'iaurt', 'smântână', 'ou', 'carne', 'pui', 'porc', 'vită', 'pește', 'legume', 'roșie', 'castravete', 'ceapă', 'usturoi', 'cartof', 'morcov', 'ardei', 'varză', 'conopidă', 'brocoli', 'spanac', 'salată', 'fasole', 'mazăre', 'porumb', 'ciuperci', 'fructe', 'măr', 'pară', 'banană', 'portocală', 'lămâie', 'mandarină', 'struguri', 'pepene', 'căpșuni', 'cireșe', 'vișine', 'prune', 'caise', 'piersici', 'ananas', 'mango', 'kiwi', 'rodie', 'alune', 'nuci', 'migdale', 'fistic', 'ciocolată', 'bomboană', 'înghețată', 'prăjitură', 'biscuit', 'gogoașă', 'clătită', 'plăcintă', 'suc', 'apă', 'minerală', 'plată', 'limonadă', 'bere', 'vin', 'șampanie', 'cocktail', 'gheață', 'pai', 'pahare', 'toast', 'noroc', 'sănătate', 'viață', 'tinerete', 'bătrânețe', 'naștere', 'copilărie', 'adolescență', 'maturitate', 'trecut', 'prezent', 'viitor', 'orizont', 'infinit', 'absolut', 'perfecțiune', 'ideal', 'scop', 'țintă', 'obiectiv', 'vis', 'coșmar', 'somn', 'pat', 'pernă', 'pătură', 'plapumă', 'saltea', 'cearsaf', 'trezire', 'alarmă', 'cafea', 'rutină', 'gimnastică', 'sport', 'alergare', 'fotbal', 'baschet', 'tenis', 'volei', 'handbal', 'rugby', 'hochei', 'patinaj', 'schi', 'înot', 'ciclism', 'atletism', 'gimnastică', 'box', 'karate', 'judo', 'yoga', 'fitness', 'sală', 'antrenor', 'echipament', 'minge', 'plasă', 'poartă', 'teren', 'stadion', 'tribună', 'suporter', 'arbitru', 'scor', 'meci', 'repriză', 'prelungiri', 'penalty', 'fault', 'cartonaș', 'galben', 'roșu', 'eliminare', 'accidentare', 'medic', 'ambulanță', 'spital', 'farmacie', 'rețetă', 'pastilă', 'sirop', 'cremă', 'pansament', 'fașă', 'termometru', 'tensiometru', 'stetoscop', 'injecție', 'vaccin', 'tratament', 'vindecare', 'sănătate', 'energie', 'vitalitate', 'forță', 'putere', 'curaj', 'voință', 'ambiție', 'perseverență', 'răbdare', 'calm', 'pace', 'liniște', 'armonie', 'echilibru', 'stabilitate', 'siguranță', 'protecție', 'scut', 'armură', 'pază', 'gardă', 'alarmă', 'câine', 'pază', 'gard', 'poartă', 'lacăt', 'cheie', 'seif', 'comoară', 'aur', 'bijuterii', 'secret', 'mister', 'enigmă', 'ghicitoare', 'indiciu', 'detectiv', 'anchetă', 'caz', 'suspect', 'martor', 'dovadă', 'probă', 'amprentă', 'lupă', 'lanternă', 'noapte', 'întuneric', 'umbră', 'siluetă', 'pas', 'zgomot', 'șoaptă', 'frică', 'spaimă', 'groază', 'tensiune', 'suspans', 'frison', 'fior', 'emoție', 'uimire', 'surpriză', 'șoc', 'minune', 'miracol', 'magie', 'vrăjitorie', 'blestem', 'farmec', 'talisman', 'amuletă', 'noroc', 'destin', 'soartă', 'șansă', 'succes', 'glorie'];
 
 function shuffleChars(chars) {
     const arr = [...chars];
@@ -1101,6 +1164,27 @@ async function handleHangmanGuess(sock, game, guessText) {
     }
 
     await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit! Mai ai *${HANGMAN_MAX_WRONG - game.wrongGuesses}* greșeli.` });
+}
+
+const activeAnagramGames = new Map();
+const ANAGRAM_WORDS = ['pahar', 'luna', 'munca', 'soare', 'cerc', 'munte', 'carte', 'caini', 'frunze', 'suflet'];
+
+async function startAnagramGame(sock) {
+    const word = ANAGRAM_WORDS[Math.floor(Math.random() * ANAGRAM_WORDS.length)];
+    activeAnagramGames.set(groupId, { word });
+    await botSend(sock, groupId, {
+        text: `${BOT_NAME}\n🧩 Anagramă\n\nGăsește cuvântul din: *${scrambleWord(word)}*`
+    });
+}
+
+async function handleAnagramGuess(sock, game, guessText) {
+    if (normalizeText(guessText) === normalizeText(game.word)) {
+        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect! Cuvântul era *${game.word}*!` });
+        activeAnagramGames.delete(groupId);
+        return;
+    }
+
+    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
 }
 
 const activeEmojiQuizGames = new Map();
@@ -1292,6 +1376,10 @@ async function handleAnimalGuess(sock, game, guessText) {
 async function handleInteractiveButton(sock, buttonId) {
     if (buttonId.startsWith('ttt_')) {
         await handleTicTacToeButton(sock, buttonId);
+        return;
+    }
+    if (buttonId.startsWith('rps_')) {
+        await handleRpsChoice(sock, buttonId);
         return;
     }
     if (buttonId.startsWith('quiz_')) {
@@ -1629,60 +1717,6 @@ async function sendImageFromFolder(sock, folderPath, caption = '', jid = groupId
     return true;
 }
 
-// ====================== UNGARIA - TIMER FRUMOS ======================
-
-async function sendHungaryCountdown(sock) {
-    const now = new Date();
-
-    const plecare = new Date(2026, 6, 18, 7, 30, 0);
-    const miercureaCiuc = new Date(2026, 6, 19, 12, 30, 0);
-    const acasa = new Date(2026, 6, 19, 17, 30, 0);
-
-    let text = `${BOT_NAME}\n🗺️ *Drumul meu spre tine, Stefania*\n\n━━━━━━━━━━━━━━━━━━━━\n\n`;
-
-    if (now < plecare) {
-        let diff = plecare - now;
-        const sec = Math.floor(diff / 1000) % 60;
-        const min = Math.floor(diff / (1000*60)) % 60;
-        const ore = Math.floor(diff / (1000*60*60)) % 24;
-        const zile = Math.floor(diff / (1000*60*60*24));
-        const sapt = Math.floor(zile / 7);
-        const zileExtra = zile % 7;
-
-        text += `🚀 **PÂNĂ LA PLECARE**\n`;
-        text += `📅 ${sapt} săptămâni + ${zileExtra} zile\n`;
-        text += `⏰ ${ore} ore, ${min} minute, ${sec} secunde\n\n`;
-
-    } else if (now < miercureaCiuc) {
-        let diff = miercureaCiuc - now;
-        const sec = Math.floor(diff / 1000) % 60;
-        const min = Math.floor(diff / (1000*60)) % 60;
-        const ore = Math.floor(diff / (1000*60*60)) % 24;
-
-        text += `🛫 **Am plecat din Ungaria!**\n`;
-        text += `⏳ **PÂNĂ LA MIERCUREA CIUC**\n`;
-        text += `⏰ ${ore} ore, ${min} minute, ${sec} secunde\n\n`;
-
-    } else if (now < acasa) {
-        let diff = acasa - now;
-        const sec = Math.floor(diff / 1000) % 60;
-        const min = Math.floor(diff / (1000*60)) % 60;
-        const ore = Math.floor(diff / (1000*60*60)) % 24;
-
-        text += `🛬 **Am ajuns la Miercurea Ciuc!**\n`;
-        text += `⏳ **PÂNĂ ACASĂ LA TINE**\n`;
-        text += `⏰ ${ore} ore, ${min} minute, ${sec} secunde\n\n`;
-
-    } else {
-        text += `🎉 **Am ajuns acasă!**\n❤️ Stefania, sunt cu tine! Te iubesc!`;
-    }
-
-    text += `\n━━━━━━━━━━━━━━━━━━━━\n`;
-    text += `❤️ Mi-e dor de tine... Vin cât pot de repede! 💞`;
-
-    await botSend(sock, groupId, { text });
-}
-
 async function trackSendMessage(sock, jid, payload) {
     const result = await sock.sendMessage(jid, payload);
     if (result?.key?.id) botSentIds.add(result.key.id);
@@ -1782,8 +1816,10 @@ async function startBot() {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             console.log('❌ Conexiune închisă. Cod:', statusCode, '-', lastDisconnect?.error?.message);
 
-            const loggedOut = statusCode === 401 ||
-                (statusCode === 401 && lastDisconnect?.error?.data?.content?.[0]?.attrs?.type === 'device_removed');
+            // FIX: this used to be `statusCode === 401 || (statusCode === 401 && ...)`,
+            // a self-redundant condition (the second clause can never add anything
+            // the first one didn't already cover). Simplified to the actual check.
+            const loggedOut = statusCode === 401;
 
             if (loggedOut) {
                 console.log('🚪 Autentificarea a eșuat. Șterge folderul "auth" și repornește pentru a te reasocia.');
@@ -1873,6 +1909,12 @@ async function startBot() {
             return;
         }
 
+        const activeAnagramGame = activeAnagramGames.get(groupId);
+        if (activeAnagramGame && !text.includes('cupidon')) {
+            await handleAnagramGuess(sock, activeAnagramGame, rawText);
+            return;
+        }
+
         const activeEmojiQuizGame = activeEmojiQuizGames.get(groupId);
         if (activeEmojiQuizGame && !text.includes('cupidon')) {
             await handleEmojiQuizGuess(sock, activeEmojiQuizGame, rawText);
@@ -1948,7 +1990,12 @@ async function startBot() {
                 }
                 return;
             }
-            if (text.includes('impreuna') || text.includes('impreuna')) {
+
+            // FIX: was `text.includes('impreuna') || text.includes('impreuna')` — a
+            // literal duplicate of the same check. normalizeText() already strips
+            // diacritics, so "împreună" and "impreuna" normalize to the same
+            // string; only one branch is needed.
+            if (text.includes('impreuna')) {
                 await botSend(sock, groupId, {
                     text: `${BOT_NAME}\n❤️ Sunteți împreună de:\n**${getTimeTogether()}**`
                 });
@@ -1975,6 +2022,36 @@ async function startBot() {
                 return;
             }
 
+            if (text.includes('stefi') || text.includes('stefania')) {
+                await sendTextWithImage(
+                    sock,
+                    `${BOT_NAME}\n🖼️ Iată o imagine specială pentru tine! Stefania`,
+                    'general',
+                    path.join(__dirname, 'Stefania', 'poze')
+                );
+                return;
+            }
+
+            if (text.includes('denis')) {
+                await sendTextWithImage(
+                    sock,
+                    `${BOT_NAME}\n🖼️ Iată o imagine specială pentru tine! Denis`,
+                    'general',
+                    path.join(__dirname, 'Denis', 'poze')
+                );
+                return;
+            }
+
+            if (text.includes('temp')) {
+                const time = getTimeTogether().split(',')[0];
+                await sendImageFromFolder(sock, path.join(__dirname, 'Denis', 'poze'), `${BOT_NAME}\n🖼️`, groupId);
+                await sendImageFromFolder(sock, path.join(__dirname, 'Stefania', 'poze'), `${BOT_NAME}\n🖼️`, groupId);
+                await botSend(sock, groupId, {
+                    text: `${BOT_NAME}\n🎉 Ați ajuns la ❤️**${time}**❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
+                });
+                return;
+            }
+
             if (text.includes('memory')) {
                 await sendTextWithImage(sock, buildRelationshipMessage('memory'), 'relationship');
                 return;
@@ -1995,7 +2072,9 @@ async function startBot() {
                 return;
             }
 
-            if (text.includes('imagineazati') || text.includes('imagineaza') || text.includes('imagineaza')) {
+            // FIX: was `text.includes('imagineazati') || text.includes('imagineaza') || text.includes('imagineaza')`
+            // — the third clause was an exact duplicate of the second.
+            if (text.includes('imagineazati') || text.includes('imagineaza')) {
                 await botSend(sock, groupId, { text: `${BOT_NAME}\n${buildImagineMessage()}` }, 'romantic');
                 return;
             }
@@ -2032,7 +2111,8 @@ async function startBot() {
                 return;
             }
 
-            if (text.includes('lovequote') || text.includes('lovequote')) {
+            // FIX: was `text.includes('lovequote') || text.includes('lovequote')` — duplicate clause.
+            if (text.includes('lovequote')) {
                 await sendCommandReply(sock, 'lovequote');
                 return;
             }
@@ -2052,12 +2132,16 @@ async function startBot() {
                 return;
             }
 
-            if (text.includes('goodmorning') || text.includes('bunademineata')) {
+            // FIX: alt-text kept as one run-together, unaccented word ('bunademineata')
+            // that normalizeText() (which preserves spaces) can never produce from
+            // "bună dimineața" — the normalized form is "buna dimineata" (with a
+            // space), so the old alt-match was dead. Same issue below for goodnight.
+            if (text.includes('goodmorning') || text.includes('buna dimineata')) {
                 await sendCommandReply(sock, 'goodmorning');
                 return;
             }
 
-            if (text.includes('goodnight') || text.includes('bunanopate')) {
+            if (text.includes('goodnight') || text.includes('buna noapte')) {
                 await sendCommandReply(sock, 'goodnight');
                 return;
             }
@@ -2069,6 +2153,27 @@ async function startBot() {
 
             if (text.includes('kissmessage')) {
                 await sendCommandReply(sock, 'kissmessage');
+                return;
+            }
+
+            // FIX: 'foreheadkiss', 'cheekkiss' and 'handkiss' all *contain* the
+            // substring 'kiss' (e.g. "foreheadkiss".includes('kiss') === true).
+            // They used to be checked AFTER the generic 'kiss' branch below, so
+            // the generic check always intercepted them first and those three
+            // commands could never be reached. Moving them above 'kiss' (but
+            // after the still-more-specific 'kissmessage') fixes all three.
+            if (text.includes('foreheadkiss')) {
+                await sendCommandReply(sock, 'foreheadkiss');
+                return;
+            }
+
+            if (text.includes('cheekkiss')) {
+                await sendCommandReply(sock, 'cheekkiss');
+                return;
+            }
+
+            if (text.includes('handkiss')) {
+                await sendCommandReply(sock, 'handkiss');
                 return;
             }
 
@@ -2084,21 +2189,6 @@ async function startBot() {
 
             if (text.includes('cuddle')) {
                 await sendCommandReply(sock, 'cuddle');
-                return;
-            }
-
-            if (text.includes('foreheadkiss')) {
-                await sendCommandReply(sock, 'foreheadkiss');
-                return;
-            }
-
-            if (text.includes('cheekkiss')) {
-                await sendCommandReply(sock, 'cheekkiss');
-                return;
-            }
-
-            if (text.includes('handkiss')) {
-                await sendCommandReply(sock, 'handkiss');
                 return;
             }
 
@@ -2147,6 +2237,17 @@ async function startBot() {
                 return;
             }
 
+            // FIX: 'emojiquiz' (the game further below) contains the substring
+            // 'emoji', so the generic 'emoji' message-pool command used to
+            // intercept it first and the emojiquiz game could never start.
+            // Checking 'emojiquiz' here, before the generic 'emoji' branch,
+            // fixes it (and the duplicate 'emojiquiz' check further down,
+            // after 'quiz', has been removed since it was unreachable too).
+            if (text.includes('emojiquiz')) {
+                await startEmojiQuizGame(sock);
+                return;
+            }
+
             if (text.includes('emoji')) {
                 await sendCommandReply(sock, 'emoji');
                 return;
@@ -2192,7 +2293,8 @@ async function startBot() {
                 return;
             }
 
-            if (text.includes('dedicatie') || text.includes('dedicatie')) {
+            // FIX: was `text.includes('dedicatie') || text.includes('dedicatie')` — duplicate clause.
+            if (text.includes('dedicatie')) {
                 await sendCommandReply(sock, 'dedicatie');
                 return;
             }
@@ -2208,6 +2310,11 @@ async function startBot() {
                 return;
             }
 
+            if (text.includes('rps') || text.includes('piatrafoarfecahartie')) {
+                await startRpsGame(sock);
+                return;
+            }
+
             if (text.includes('quiz')) {
                 await startQuizGame(sock);
                 return;
@@ -2220,7 +2327,7 @@ async function startBot() {
 
             if (text.includes('games') || text.includes('jocuri')) {
                 await botSend(sock, groupId, {
-                    text: `${BOT_NAME}\n🎮 Jocuri disponibile\n\n🧠 riddle / ghicitoare\n🎲 tictactoe\n🧠 quiz\n🔢 numar\n🎲 dice\n🪙 coin\n🔮 8ball / fortune\n🎰 slot\n🧩 scramble\n🎯 hangman\n🧠 emojiquiz\n🧮 math\n🎨 color\n🎲 choose\n\nScrie *cupidon <nume joc>* pentru a începe!`
+                    text: `${BOT_NAME}\n🎮 Jocuri disponibile\n\n🧠 riddle / ghicitoare\n🎲 tictactoe\n🪨 rps\n🧠 quiz\n🔢 numar\n🎲 dice\n🪙 coin\n🔮 8ball / fortune\n🎰 slot\n🧩 scramble\n🎯 hangman\n🧩 anagram\n🧠 emojiquiz\n🧮 math\n🎨 color\n🎲 choose\n\nScrie *cupidon <nume joc>* pentru a începe!`
                 });
                 return;
             }
@@ -2255,8 +2362,8 @@ async function startBot() {
                 return;
             }
 
-            if (text.includes('emojiquiz')) {
-                await startEmojiQuizGame(sock);
+            if (text.includes('anagram')) {
+                await startAnagramGame(sock);
                 return;
             }
 
@@ -2279,7 +2386,7 @@ async function startBot() {
                 await startAnimalGame(sock);
                 return;
             }
-            
+
             if (text.includes('cupidon sapt') || text.includes('cupidon saptamana')) {
                 await sendMilestoneMessage(sock, 'sapt');
                 return;
@@ -2292,11 +2399,6 @@ async function startBot() {
 
             if (text.includes('cupidon an')) {
                 await sendMilestoneMessage(sock, 'an');
-                return;
-            }
-
-            if (text.includes('cupidon ungaria')) {
-                await sendHungaryCountdown(sock);
                 return;
             }
 
@@ -2329,13 +2431,13 @@ async function startBot() {
         }
     });
 
-    // Schedule hourly messages from 10:00 to 23:00 with rotating message typesa
+    // Schedule hourly messages from 10:00 to 23:00 with rotating message types
     const messageTypes = ['romantic', 'rizz', 'flirt', 'pickup'];
-    
+
     for (let hour = 10; hour <= 23; hour++) {
         const messageType = messageTypes[(hour - 10) % messageTypes.length];
         const cronTime = `0 ${hour} * * *`;
-        
+
         cron.schedule(cronTime, async () => {
             await sendCommandReply(sock, messageType);
         }, { timezone: 'Europe/Bucharest' });

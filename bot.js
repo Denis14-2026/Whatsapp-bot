@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 const startDate = new Date('2026-06-24T00:00:00');
-const groupId = '120363409752411368@g.us';
+const groupId = '58145535742158@lid';
 
 const BOT_NAME = '🏹 *Cupidon*';
 const RIDDLE_TIMEOUT_MS = 5 * 60 * 1000;

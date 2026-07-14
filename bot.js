@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 const startDate = new Date('2026-06-24T00:00:00');
-const groupId = '58145535742158@lid';
+const groupId = '120363409752411368@g.us';
 
 const BOT_NAME = '🏹 *Cupidon*';
 const RIDDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -18,58 +18,127 @@ const botSentIds = new Set();
 let startupAnnounced = false;
 let shutdownAnnounced = false;
 
+// ============================================================
+// VISUAL THEME
+// ------------------------------------------------------------
+// Every outgoing message is wrapped in a small "card": an optional
+// category kicker (a spaced-out label like "✦ L O V E ✦"), a bold
+// icon + title header, a rule, the message body, another rule, and a
+// tiny signature footer. Every command/game gets its own icon, title
+// and category so the bot no longer shows the same generic wrapper
+// for everything — dice rolls look like dice rolls, hangman looks
+// like hangman, etc.
+// ============================================================
+
+const RULE = '━'.repeat(20);
+const FOOTER = '🏹 Cupidon';
+
 const styleMap = {
-    general: { title: '🏹 Cupidon', icon: '💖' },
-    riddle: { title: '🧠 Ghicitoare', icon: '🧠' },
-    romantic: { title: '💘 Mesaj romantic', icon: '💖' },
-    rizz: { title: '😏 Rizz', icon: '🔥' },
-    compliment: { title: '💝 Compliment', icon: '✨' },
-    flirt: { title: '💬 Flirt', icon: '🌹' },
-    pickup: { title: '🫶 Pickup', icon: '💫' },
-    lovequote: { title: '📜 Love quote', icon: '💌' },
-    reasons: { title: '💡 Motive', icon: '💡' },
-    promise: { title: '🤝 Promisiune', icon: '💞' },
-    missyou: { title: '💔 Mi-e dor', icon: '🌙' },
-    goodmorning: { title: '🌞 Bună dimineața', icon: '🌞' },
-    goodnight: { title: '🌙 Noapte bună', icon: '🌙' },
-    hugmessage: { title: '🤗 Mesaj îmbrățișare', icon: '🤗' },
-    kissmessage: { title: '💋 Mesaj sărut', icon: '💋' },
-    kiss: { title: '💋 Sărut', icon: '💋' },
-    hug: { title: '🤗 Îmbrățișare', icon: '🤗' },
-    cuddle: { title: '🥰 Îmbrățișare caldă', icon: '🥰' },
-    foreheadkiss: { title: '💫 Sărut pe frunte', icon: '💫' },
-    cheekkiss: { title: '💋 Sărut pe obraz', icon: '💋' },
-    handkiss: { title: '💍 Sărut pe mână', icon: '💍' },
-    dance: { title: '💃 Dans', icon: '💃' },
-    massage: { title: '🪷 Masaj', icon: '🪷' },
-    holdhands: { title: '🤝 Țineți-vă de mână', icon: '🤝' },
-    surprise: { title: '🎁 Surpriză', icon: '🎁' },
-    truth: { title: '🧠 Adevăr', icon: '🧠' },
-    dare: { title: '🔥 Provocare', icon: '🔥' },
-    challenge: { title: '🎯 Provocare', icon: '🎯' },
-    wouldyourather: { title: '🤔 Alege', icon: '🤔' },
-    thisorthat: { title: '💞 Alege', icon: '💞' },
-    emoji: { title: '😀 Emoji', icon: '😀' },
-    guess: { title: '🎲 Ghicește', icon: '🎲' },
-    spin: { title: '🎡 Rotiți', icon: '🎡' },
-    question: { title: '❓ Întrebare', icon: '❓' },
-    dedicatie: { title: '💌 Dedicație', icon: '💌' },
-    poezie: { title: '📜 Poezie', icon: '📜' },
-    date: { title: '💘 Idei de date', icon: '💘' },
-    gift: { title: '🎁 Cadou', icon: '🎁' },
-    bucketlist: { title: '📝 Bucket list', icon: '📝' },
-    punish: { title: '😈 Pedepse', icon: '😈' },
-    reward: { title: '🎉 Recompensă', icon: '🎉' },
-    website: { title: '🌐 Website', icon: '🌐' },
-    help: { title: '📖 Help', icon: '📖' },
-    relationship: { title: '💕 Relație', icon: '💕' }
+    general:        { icon: '💖', title: 'Cupidon' },
+    help:           { icon: '📖', title: 'Ghid' },
+
+    // LOVE
+    riddle:         { icon: '🧠', title: 'Ghicitoare', category: 'G H I C I T O A R E' },
+    romantic:       { icon: '💘', title: 'Mesaj Romantic', category: 'L O V E' },
+    rizz:           { icon: '🔥', title: 'Rizz', category: 'L O V E' },
+    compliment:     { icon: '✨', title: 'Compliment', category: 'L O V E' },
+    flirt:          { icon: '🌹', title: 'Flirt', category: 'L O V E' },
+    pickup:         { icon: '💫', title: 'Pickup Line', category: 'L O V E' },
+    lovequote:      { icon: '📜', title: 'Love Quote', category: 'L O V E' },
+    reasons:        { icon: '💡', title: 'Motive', category: 'L O V E' },
+    promise:        { icon: '🤝', title: 'Promisiune', category: 'L O V E' },
+    missyou:        { icon: '🌙', title: 'Mi-e Dor', category: 'L O V E' },
+    goodmorning:    { icon: '🌞', title: 'Bună Dimineața', category: 'L O V E' },
+    goodnight:      { icon: '🌙', title: 'Noapte Bună', category: 'L O V E' },
+    imagine:        { icon: '💭', title: 'Imaginează-ți', category: 'L O V E' },
+
+    // ACȚIUNI
+    hugmessage:     { icon: '🤗', title: 'Îmbrățișare', category: 'A C Ț I U N I' },
+    kissmessage:    { icon: '💋', title: 'Sărut', category: 'A C Ț I U N I' },
+    kiss:           { icon: '💋', title: 'Sărut', category: 'A C Ț I U N I' },
+    hug:            { icon: '🤗', title: 'Îmbrățișare', category: 'A C Ț I U N I' },
+    cuddle:         { icon: '🥰', title: 'Îmbrățișare Caldă', category: 'A C Ț I U N I' },
+    foreheadkiss:   { icon: '💫', title: 'Sărut pe Frunte', category: 'A C Ț I U N I' },
+    cheekkiss:      { icon: '😊', title: 'Sărut pe Obraz', category: 'A C Ț I U N I' },
+    handkiss:       { icon: '💍', title: 'Sărut pe Mână', category: 'A C Ț I U N I' },
+    dance:          { icon: '💃', title: 'Dans', category: 'A C Ț I U N I' },
+    massage:        { icon: '🪷', title: 'Masaj', category: 'A C Ț I U N I' },
+    holdhands:      { icon: '🤝', title: 'Ținut de Mână', category: 'A C Ț I U N I' },
+    surprise:       { icon: '🎁', title: 'Surpriză', category: 'A C Ț I U N I' },
+
+    // JOC DE CUPLU
+    truth:          { icon: '🧠', title: 'Adevăr', category: 'C U P L U' },
+    dare:           { icon: '🔥', title: 'Provocare', category: 'C U P L U' },
+    challenge:      { icon: '🎯', title: 'Challenge', category: 'C U P L U' },
+    wouldyourather: { icon: '🤔', title: 'Ai Alege', category: 'C U P L U' },
+    thisorthat:     { icon: '⚖️', title: 'Asta sau Aia', category: 'C U P L U' },
+    emoji:          { icon: '😀', title: 'Emoji', category: 'C U P L U' },
+    guess:          { icon: '🎲', title: 'Ghicește', category: 'C U P L U' },
+    spin:           { icon: '🎡', title: 'Rotiți', category: 'C U P L U' },
+    question:       { icon: '❓', title: 'Întrebare', category: 'C U P L U' },
+
+    // SPECIAL
+    dedicatie:      { icon: '💌', title: 'Dedicație', category: 'S P E C I A L' },
+    poezie:         { icon: '📜', title: 'Poezie', category: 'S P E C I A L' },
+
+    // FUN
+    date:           { icon: '🍽️', title: 'Idee de Date', category: 'F U N' },
+    gift:           { icon: '🎁', title: 'Idee de Cadou', category: 'F U N' },
+    bucketlist:     { icon: '📝', title: 'Bucket List', category: 'F U N' },
+    punish:         { icon: '😈', title: 'Pedeapsă', category: 'F U N' },
+    reward:         { icon: '🏆', title: 'Recompensă', category: 'F U N' },
+    website:        { icon: '🌐', title: 'Website', category: 'F U N' },
+
+    // RELAȚIE
+    relationship:   { icon: '💕', title: 'Relație', category: 'R E L A Ț I E' },
+    lovemeter:      { icon: '💘', title: 'Love Meter', category: 'R E L A Ț I E' },
+    compatibility:  { icon: '💞', title: 'Compatibilitate', category: 'R E L A Ț I E' },
+    memory:         { icon: '📸', title: 'Amintire', category: 'R E L A Ț I E' },
+    firstdate:      { icon: '🌅', title: 'Prima Întâlnire', category: 'R E L A Ț I E' },
+    anniversary:    { icon: '🎂', title: 'Aniversare', category: 'R E L A Ț I E' },
+    countdown:      { icon: '⏳', title: 'Countdown', category: 'R E L A Ț I E' },
+    milestone:      { icon: '🎉', title: 'Repere', category: 'R E L A Ț I E' },
+
+    // GAME
+    diceGame:       { icon: '🎲', title: 'Zaruri', category: 'G A M E' },
+    coinGame:       { icon: '🪙', title: 'Cap sau Pajură', category: 'G A M E' },
+    eightball:      { icon: '🔮', title: 'Magic 8 Ball', category: 'G A M E' },
+    slotGame:       { icon: '🎰', title: 'Slot Machine', category: 'G A M E' },
+    hangman:        { icon: '🎯', title: 'Spânzurătoarea', category: 'G A M E' },
+    anagram:        { icon: '🧩', title: 'Anagramă', category: 'G A M E' },
+    emojiquiz:      { icon: '🧠', title: 'Emoji Quiz', category: 'G A M E' },
+    mathquiz:       { icon: '🧮', title: 'Math Quiz', category: 'G A M E' },
+    colorguess:     { icon: '🎨', title: 'Ghicește Culoarea', category: 'G A M E' },
+    trivia:         { icon: '🧠', title: 'Trivia', category: 'G A M E' },
+    animalguess:    { icon: '🐾', title: 'Ghicește Animalul', category: 'G A M E' },
+    numberguess:    { icon: '🔢', title: 'Ghicește Numărul', category: 'G A M E' },
+    scramble:       { icon: '🧩', title: 'Cuvânt Amestecat', category: 'G A M E' },
+    tictactoe:      { icon: '🎮', title: 'TicTacToe', category: 'G A M E' },
+    rps:            { icon: '🪨', title: 'Piatră, Foarfecă, Hârtie', category: 'G A M E' },
+    quiz:           { icon: '🧠', title: 'Quiz Cuplu', category: 'G A M E' }
 };
 
 function decorateMessage(body, type = 'general') {
     const style = styleMap[type] || styleMap.general;
-    const divider = '━━━━━━━━━━━━━━━━━━━━';
     const cleanBody = String(body).replace(/\n{3,}/g, '\n\n').trim();
-    return `${style.icon} ${style.title}\n${divider}\n${cleanBody}\n${divider}`;
+
+    const lines = [];
+    if (style.category) lines.push(`✦ ${style.category} ✦`);
+    lines.push(`${style.icon} *${style.title}*`);
+    lines.push(RULE);
+    lines.push(cleanBody);
+    lines.push(RULE);
+    lines.push(FOOTER);
+
+    return lines.join('\n');
+}
+
+// Small "progress bar" made of hearts — used anywhere we show remaining
+// attempts/lives (riddles, hangman, number guessing, scramble) instead
+// of a bare "2/3" counter.
+function livesBar(remaining, max) {
+    const safeRemaining = Math.max(0, Math.min(remaining, max));
+    return '❤️'.repeat(safeRemaining) + '🤍'.repeat(max - safeRemaining);
 }
 
 const messagePool = [
@@ -391,132 +460,80 @@ const morningMessages = [
     '🌞 Bună dimineața, cea mai frumoasă fată din galaxie ❤️'
 ];
 
-const HELP_TEXT = `
-╔═════━━━ 💘 ━━━═════╗
-        🏹  *CUPIDON BOT*  🏹
-     ❤️ *Love • Fun • Romance* ❤️
-╚═════━━━ 💘 ━━━═════╝
+const HELP_TEXT = `╭─────✦ 💘 ✦─────╮
+     🏹 *CUPIDON*
+  Love • Fun • Games
+╰─────✦ 💘 ✦─────╯
 
-🌟 *Cupidon a devenit mai inteligent și mai viu!*
-✨ Ce am Adaugat:
-- Mai multe comenzi și acțiuni pentru cupluri.
-- Mesaje personalizate și surprize pentru fiecare comandă.
-- Jocuri interactive și provocări pentru a vă distra împreună.
-- Funcționalități noi pentru a sărbători relația voastră.
-- 1 Milion de mesaje pentru multe categorii
+Scrie *cupidon <comandă>* pentru orice de mai jos ⬇️
 
-✨ *Bine ai venit!*
-Scrie:
-➜ *cupidon <comandă>*
-
-━━━━━━━━━━━━━━━━━━━━━━
+${RULE}
 ❤️ *LOVE*
-━━━━━━━━━━━━━━━━━━━━━━
-🌹 romantic
-😏 rizz
-💖 compliment
-😘 flirt
-💌 pickup
-❤️ lovequote
-🤍 promise
-💍 reasons
-🥺 missyou
+${RULE}
+🌹 romantic     😏 rizz        💖 compliment
+😘 flirt        💌 pickup      📜 lovequote
+🤍 promise      💍 reasons     🥺 missyou
+🌞 goodmorning  🌙 goodnight   💭 imagineazati
 
-━━━━━━━━━━━━━━━━━━━━━━
+${RULE}
 💋 *ACȚIUNI*
-━━━━━━━━━━━━━━━━━━━━━━
-💋 kiss
-🤗 hug
-🥰 cuddle
-😘 foreheadkiss
-😊 cheekkiss
-🤲 handkiss
-💃 dance
-💆 massage
-🤝 holdhands
+${RULE}
+💋 kiss          🤗 hug          🥰 cuddle
+😘 foreheadkiss  😊 cheekkiss    💍 handkiss
+💃 dance         💆 massage      🤝 holdhands
 🎁 surprise
-🤔 imagineazati
 
-━━━━━━━━━━━━━━━━━━━━━━
-🎮 *JOCURI DE CUPLU*
-━━━━━━━━━━━━━━━━━━━━━━
-❓ truth
-🔥 dare
-🎯 challenge
-🤔 wouldyourather
-⚖️ thisorthat
-😀 emoji
+${RULE}
+🎲 *JOC DE CUPLU*
+${RULE}
+❓ truth            🔥 dare        🎯 challenge
+🤔 wouldyourather   ⚖️ thisorthat  😀 emoji
+🎲 guess            🎡 spin        ❓ question
 
-━━━━━━━━━━━━━━━━━━━━━━
+${RULE}
 💕 *RELAȚIE*
-━━━━━━━━━━━━━━━━━━━━━━
-⏳ impreuna
-❤️ lovemeter
-💞 compatibility
-🎉 anniversary
-📸 memory
-⌛ countdown
+${RULE}
+⏳ impreuna     ❤️ lovemeter    💞 compatibility
+🎉 anniversary  📸 memory       ⌛ countdown
 🌹 firstdate
 
-━━━━━━━━━━━━━━━━━━━━━━
+${RULE}
 🎁 *FUN*
-━━━━━━━━━━━━━━━━━━━━━━
-🍽️ date
-🏆 reward
-😈 punish
-🎀 gift
-📝 bucketlist
-🌐 website
+${RULE}
+🍽️ date    🏆 reward   😈 punish
+🎀 gift    📝 bucketlist   🌐 website
+💌 dedicatie   📜 poezie
 
-━━━━━━━━━━━━━━━━━━━━━━
+${RULE}
 🎮 *GAMES*
-━━━━━━━━━━━━━━━━━━━━━━
-🎮 tictactoe
-🪨 rps
-🧠 quiz
-🔢 numar
-🎲 dice
-🪙 coin
-🔮 8ball / fortune
-🎰 slot
-🧩 scramble
-🎯 hangman
-🧩 anagram
-🧠 emojiquiz
-🧮 math
-🎨 color
-🧠 trivia
-🐾 animal
-🎲 choose
+${RULE}
+🎮 tictactoe   🪨 rps         🧠 quiz
+🔢 numar       🎲 dice        🪙 coin
+🔮 8ball       🎰 slot        🧩 scramble
+🎯 hangman     🧩 anagram     🧠 emojiquiz
+🧮 math        🎨 color       🧠 trivia
+🐾 animal      🎲 choose
 
-━━━━━━━━━━━━━━━━━━━━━━
+${RULE}
 📖 *INFO*
-━━━━━━━━━━━━━━━━━━━━━━
+${RULE}
 📚 help
 
-━━━━━━━━━━━━━━━━━━━━━━
+${RULE}
 ✨ *EXEMPLE*
-━━━━━━━━━━━━━━━━━━━━━━
-💖 cupidon romantic
-💋 cupidon kiss
-🤗 cupidon hug
-🔥 cupidon dare
-❓ cupidon truth
-❤️ cupidon lovemeter
-🍽️ cupidon date
-🌐 cupidon website
-📚 cupidon help
-📸 cupidon imagine
+${RULE}
+💖 cupidon romantic   💋 cupidon kiss
+🔥 cupidon dare       ❤️ cupidon lovemeter
+🍽️ cupidon date       🎮 cupidon tictactoe
 
-━━━━━━━━━━━━━━━━━━━━━━
-💝 *Mesaj de la Cupidon*
+╭──────────────╮
+❤️ Dragostea nu înseamnă să găsești
+persoana perfectă... ci să vezi
+perfecțiunea într-o persoană imperfectă.
 
-❤️ Dragostea nu înseamnă să găsești persoana perfectă...
-ci să vezi perfecțiunea într-o persoană imperfectă.
-
-🏹 *Cupidon este mereu aici pentru Denis ❤️ Stefania*
-💞 Fiecare comandă ascunde o surpriză!
-━━━━━━━━━━━━━━━━━━━━━━`;
+🏹 *Cupidon* — mereu aici pentru
+Denis ❤️ Stefania
+╰──────────────╯`;
 
 let currentRiddle = null;
 let riddleTimeout = null;
@@ -542,10 +559,18 @@ function normalizeText(text) {
     return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
-const BOT_MESSAGE_PREFIX = normalizeText(`${styleMap.general.icon} ${styleMap.general.title}`);
-
+// A message is treated as "ours" if it carries our bow-and-arrow mark
+// together with our name, anywhere in the text. This is deliberately
+// loose (not an exact prefix match) because every message now carries
+// its own category badge/title before the body, and the raw help menu
+// and startup/shutdown announcements all use their own formatting —
+// a strict "starts with" check would miss most of them. This is only
+// ever checked against the bot's own `fromMe` messages, so it never
+// affects anything another person in the chat sends.
 function isBotMessageText(text) {
-    return typeof text === 'string' && normalizeText(text).startsWith(BOT_MESSAGE_PREFIX);
+    if (typeof text !== 'string') return false;
+    const normalized = normalizeText(text);
+    return normalized.includes('🏹') && normalized.includes('cupidon');
 }
 
 // ============================================================
@@ -606,7 +631,7 @@ function buildSimpleMessage(type) {
     if (randomMsg.type === 'riddle') {
         currentRiddle = randomMsg;
         wrongAnswerCount = 0;
-        text += randomMsg.text + '\n\n(Ai 5 minute și maxim 3 încercări să răspunzi 😊)';
+        text += randomMsg.text + `\n\n⏱️ 5 minute · ${livesBar(MAX_WRONG_ANSWERS, MAX_WRONG_ANSWERS)}`;
     } else {
         text += randomMsg.text;
     }
@@ -644,9 +669,14 @@ function createEmptyTicTacToeBoard() {
     return Array(9).fill(null);
 }
 
+function ttoeCardHeader() {
+    const s = styleMap.tictactoe;
+    return `✦ ${s.category} ✦\n${s.icon} *${s.title}*\n${RULE}`;
+}
+
 function getTicTacToeCaption(game) {
     const symbolText = game.currentSymbol || 'X';
-    return `${BOT_NAME}\n🎮 TicTacToe Cupidon\n\n${renderTicTacToeText(game.board)}\n\nSimbol curent: *${symbolText}*\nAlege o casetă de la 1 la 9.`;
+    return `${ttoeCardHeader()}\n\n${renderTicTacToeText(game.board)}\n\nSimbol curent: *${symbolText}*\nAlege o casetă de la 1 la 9.\n${RULE}\n${FOOTER}`;
 }
 
 function getTicTacToeListRows(board) {
@@ -695,9 +725,9 @@ async function sendTicTacToeButtons(sock, game) {
     // one clean message with a button that opens all 9 cells to pick from.
     await trackSendMessage(sock, groupId, {
         text: caption,
-        footer: 'Apasă butonul de mai jos pentru a alege o casetă.',
-        title: 'TicTacToe Cupidon',
-        buttonText: 'Alege o casetă',
+        footer: '✦ Cupidon',
+        title: '🎮 TicTacToe',
+        buttonText: '👉 Alege o casetă',
         sections: [
             {
                 title: 'Tabla de joc',
@@ -717,11 +747,11 @@ async function startTicTacToeGame(sock) {
     activeTicTacToeGames.set(groupId, game);
 
     const result = await trackSendMessage(sock, groupId, {
-        text: `${BOT_NAME}\n🎮 TicTacToe Cupidon\nAlege primul simbol: *X* sau *O* și apoi scrie *cupidon start* pentru a afișa tabla.`,
-        footer: 'Alege X sau O și apoi scrie cupidon start.',
+        text: `${ttoeCardHeader()}\n\nAlege primul simbol: *X* sau *O*, apoi scrie *cupidon start* pentru a afișa tabla.\n${RULE}\n${FOOTER}`,
+        footer: '✦ Cupidon',
         buttons: [
-            { buttonId: 'ttt_choose_x', buttonText: { displayText: 'X' }, type: 1 },
-            { buttonId: 'ttt_choose_o', buttonText: { displayText: 'O' }, type: 1 }
+            { buttonId: 'ttt_choose_x', buttonText: { displayText: '❌ X' }, type: 1 },
+            { buttonId: 'ttt_choose_o', buttonText: { displayText: '⭕ O' }, type: 1 }
         ],
         headerType: 1
     });
@@ -736,19 +766,19 @@ async function beginTicTacToeGame(sock, game) {
         console.error('🎮 Eroare la pornirea TicTacToe:', error?.message || error);
         activeTicTacToeGames.delete(groupId);
         await botSend(sock, groupId, {
-            text: `${BOT_NAME}\n⚠️ A apărut o eroare la pornirea jocului. Scrie *cupidon tictactoe* pentru a încerca din nou.`
-        });
+            text: `⚠️ A apărut o eroare la pornirea jocului. Scrie *cupidon tictactoe* pentru a încerca din nou.`
+        }, 'tictactoe');
     }
 }
 
 async function handleTicTacToeMove(sock, game, index) {
     if (game.phase !== 'playing') {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n❗Alege mai întâi simbolul X sau O pentru a începe.` });
+        await botSend(sock, groupId, { text: `❗ Alege mai întâi simbolul X sau O pentru a începe.` }, 'tictactoe');
         return;
     }
 
     if (game.board[index]) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Caseta ${index + 1} este deja ocupată. Alege alta.` });
+        await botSend(sock, groupId, { text: `❌ Caseta ${index + 1} este deja ocupată. Alege alta.` }, 'tictactoe');
         await sendTicTacToeButtons(sock, game);
         return;
     }
@@ -759,12 +789,12 @@ async function handleTicTacToeMove(sock, game, index) {
         const boardText = renderTicTacToeText(game.board);
         if (winner === 'draw') {
             await botSend(sock, groupId, {
-                text: `${boardText}\n\n🤝 Remiză! Jocul s-a terminat.\nScrie *cupidon tictactoe* pentru o revanșă!`
-            });
+                text: `${boardText}\n\n🤝 *Remiză!* Jocul s-a terminat.\nScrie *cupidon tictactoe* pentru o revanșă!`
+            }, 'tictactoe');
         } else {
             await botSend(sock, groupId, {
-                text: `${boardText}\n\n🎉 *${winner}* a câștigat! Felicitări!\nScrie *cupidon tictactoe* pentru o revanșă!`
-            });
+                text: `${boardText}\n\n🎉 *${winner} a câștigat!* Felicitări!\nScrie *cupidon tictactoe* pentru o revanșă!`
+            }, 'tictactoe');
         }
         activeTicTacToeGames.delete(groupId);
         return;
@@ -777,8 +807,8 @@ async function handleTicTacToeMove(sock, game, index) {
         console.error('🎮 Eroare la trimiterea tablei TicTacToe:', error?.message || error);
         activeTicTacToeGames.delete(groupId);
         await botSend(sock, groupId, {
-            text: `${BOT_NAME}\n⚠️ A apărut o eroare în joc. Scrie *cupidon tictactoe* pentru a începe din nou.`
-        });
+            text: `⚠️ A apărut o eroare în joc. Scrie *cupidon tictactoe* pentru a începe din nou.`
+        }, 'tictactoe');
     }
 }
 
@@ -786,34 +816,43 @@ async function handleTicTacToeButton(sock, buttonId) {
     console.log('🎮 handleTicTacToeButton called with', buttonId);
     const game = activeTicTacToeGames.get(groupId);
     if (!game) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Nu există un joc activ. Scrie *cupidon tictactoe* pentru a începe.` });
+        await botSend(sock, groupId, { text: `❗ Nu există un joc activ. Scrie *cupidon tictactoe* pentru a începe.` }, 'tictactoe');
         return;
     }
 
     if (buttonId === 'ttt_choose_x' || buttonId === 'ttt_choose_o') {
         if (game.phase !== 'pick-symbol') {
-            await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Jocul este deja pronit.` });
+            await botSend(sock, groupId, { text: `❗ Jocul este deja pornit.` }, 'tictactoe');
             return;
         }
         game.phase = 'ready';
         game.currentSymbol = buttonId === 'ttt_choose_x' ? 'X' : 'O';
         await botSend(sock, groupId, {
-            text: `${BOT_NAME}\n✅ Ai ales *${game.currentSymbol}*. Spune *cupidon start* pentru a porni tabelul de joc.`
-        });
+            text: `✅ Ai ales *${game.currentSymbol}*. Spune *cupidon start* pentru a porni tabla de joc.`
+        }, 'tictactoe');
         return;
     }
 
     if (buttonId.startsWith('ttt_move_')) {
         const index = Number(buttonId.replace('ttt_move_', ''));
         if (Number.isNaN(index) || index < 0 || index > 8) {
-            await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Mutare invalidă.` });
+            await botSend(sock, groupId, { text: `❗ Mutare invalidă.` }, 'tictactoe');
             return;
         }
         await handleTicTacToeMove(sock, game, index);
         return;
     }
 
-    await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Buton TicTacToe necunoscut.` });
+    await botSend(sock, groupId, { text: `❗ Buton TicTacToe necunoscut.` }, 'tictactoe');
+}
+
+function cardHeader(type) {
+    const s = styleMap[type] || styleMap.general;
+    const lines = [];
+    if (s.category) lines.push(`✦ ${s.category} ✦`);
+    lines.push(`${s.icon} *${s.title}*`);
+    lines.push(RULE);
+    return lines.join('\n');
 }
 
 // ============================================================
@@ -831,12 +870,9 @@ function pickRpsChoice() {
     return keys[Math.floor(Math.random() * keys.length)];
 }
 
-// ====================== START GAME ======================
-// FIX: this used to take a `chatId` second argument that nothing ever
-// passed in (the caller only ever did `startRpsGame(sock)`), so the
-// function always hit its own "chatId is undefined" guard and silently
-// sent nothing. It now always targets the configured group, exactly
-// like every other game in this file.
+// FIX (carried over): this used to take a `chatId` second argument that
+// nothing ever passed in, so it always hit its own "undefined" guard and
+// silently sent nothing. It always targets the configured group now.
 async function startRpsGame(sock) {
     const buttons = [
         { buttonId: 'rps_piatra',   buttonText: { displayText: '🪨 Piatră' },   type: 1 },
@@ -845,24 +881,17 @@ async function startRpsGame(sock) {
     ];
 
     await trackSendMessage(sock, groupId, {
-        text: `${BOT_NAME}\n🪨📄✂️ *Piatră, Foarfecă, Hârtie*\n\nAlege-ți mutarea!`,
-        footer: 'Cupidon va alege și el.',
+        text: `${cardHeader('rps')}\n\nAlege-ți mutarea!\n${RULE}\n${FOOTER}`,
+        footer: '✦ Cupidon',
         buttons: buttons,
         headerType: 1
     });
 }
 
-// ====================== HANDLE CHOICE ======================
-// FIX: there used to be TWO handleRpsChoice functions declared (a
-// (sock, chatId, buttonId) version and this (sock, buttonId) version).
-// The second declaration silently overwrote the first at load time, and
-// handleInteractiveButton only ever calls it with (sock, buttonId), so
-// the dead chatId-based copy has been removed entirely — this is the
-// one that was actually reachable.
 async function handleRpsChoice(sock, buttonId) {
     const playerChoice = buttonId.replace('rps_', '');
     if (!RPS_CHOICES[playerChoice]) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Alegere invalidă.` });
+        await botSend(sock, groupId, { text: `❗ Alegere invalidă.` }, 'rps');
         return;
     }
 
@@ -872,16 +901,16 @@ async function handleRpsChoice(sock, buttonId) {
 
     let resultText;
     if (playerChoice === botChoice) {
-        resultText = '🤝 Egalitate! Amândoi ați ales la fel.';
+        resultText = '🤝 *Egalitate!* Amândoi ați ales la fel.';
     } else if (RPS_CHOICES[playerChoice].beats === botChoice) {
-        resultText = '🎉 Ai câștigat! Felicitări!';
+        resultText = '🎉 *Ai câștigat!* Felicitări!';
     } else {
-        resultText = '😅 Cupidon a câștigat de data asta!';
+        resultText = '😅 *Cupidon a câștigat* de data asta!';
     }
 
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🪨📄✂️ Piatră, Foarfecă, Hârtie\n\nTu ai ales: ${playerLabel}\nCupidon a ales: ${botLabel}\n\n${resultText}\n\nScrie *cupidon rps* pentru o revanșă!`
-    });
+        text: `Tu ai ales: ${playerLabel}\nCupidon a ales: ${botLabel}\n\n${resultText}\n\nScrie *cupidon rps* pentru o revanșă!`
+    }, 'rps');
 }
 
 // ============================================================
@@ -911,10 +940,10 @@ async function startQuizGame(sock) {
     }));
 
     await trackSendMessage(sock, groupId, {
-        text: `${BOT_NAME}\n🧠 Quiz Cupidon\n\n❓ ${q.question}`,
-        footer: 'Alege un răspuns.',
-        title: 'Quiz Cupidon',
-        buttonText: 'Răspunde',
+        text: `${cardHeader('quiz')}\n\n❓ ${q.question}\n${RULE}\n${FOOTER}`,
+        footer: '✦ Cupidon',
+        title: '🧠 Quiz Cuplu',
+        buttonText: '👉 Răspunde',
         sections: [
             { title: 'Variante de răspuns', rows }
         ]
@@ -928,14 +957,14 @@ async function handleQuizAnswer(sock, buttonId) {
     const q = quizQuestions[questionIndex];
 
     if (!q || Number.isNaN(optionIndex)) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Răspuns invalid.` });
+        await botSend(sock, groupId, { text: `❗ Răspuns invalid.` }, 'quiz');
         return;
     }
 
     if (optionIndex === q.correctIndex) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n✅ Corect! Ești genială/geniu ❤️\n\nScrie *cupidon quiz* pentru altă întrebare!` });
+        await botSend(sock, groupId, { text: `✅ *Corect!* Ești genială/geniu ❤️\n\nScrie *cupidon quiz* pentru altă întrebare!` }, 'quiz');
     } else {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit! Răspunsul corect era: *${q.options[q.correctIndex]}*\n\nScrie *cupidon quiz* pentru altă întrebare!` });
+        await botSend(sock, groupId, { text: `❌ Greșit! Răspunsul corect era: *${q.options[q.correctIndex]}*\n\nScrie *cupidon quiz* pentru altă întrebare!` }, 'quiz');
     }
 }
 
@@ -958,15 +987,15 @@ async function startNumberGuessGame(sock) {
     });
 
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🔢 Ghicește Numărul\n\nM-am gândit la un număr între ${NUMBER_GAME_MIN} și ${NUMBER_GAME_MAX}.\nAi ${NUMBER_GAME_MAX_ATTEMPTS} încercări. Scrie un număr!`
-    });
+        text: `M-am gândit la un număr între *${NUMBER_GAME_MIN}* și *${NUMBER_GAME_MAX}*.\n\n${livesBar(NUMBER_GAME_MAX_ATTEMPTS, NUMBER_GAME_MAX_ATTEMPTS)}\n\nScrie un număr!`
+    }, 'numberguess');
 }
 
 async function handleNumberGuess(sock, game, guess) {
     if (guess === game.target) {
         await botSend(sock, groupId, {
-            text: `${BOT_NAME}\n🎉 Corect! Numărul era *${game.target}*! Ai ghicit din ${NUMBER_GAME_MAX_ATTEMPTS - game.attemptsLeft + 1} încercări ❤️\n\nScrie *cupidon numar* pentru un joc nou!`
-        });
+            text: `🎉 *Corect!* Numărul era *${game.target}*!\nGhicit din ${NUMBER_GAME_MAX_ATTEMPTS - game.attemptsLeft + 1} încercări ❤️\n\nScrie *cupidon numar* pentru un joc nou!`
+        }, 'numberguess');
         activeNumberGames.delete(groupId);
         return;
     }
@@ -975,16 +1004,16 @@ async function handleNumberGuess(sock, game, guess) {
 
     if (game.attemptsLeft <= 0) {
         await botSend(sock, groupId, {
-            text: `${BOT_NAME}\n❌ Ai terminat încercările! Numărul era *${game.target}*.\n\nScrie *cupidon numar* pentru un joc nou!`
-        });
+            text: `❌ Ai terminat încercările! Numărul era *${game.target}*.\n\nScrie *cupidon numar* pentru un joc nou!`
+        }, 'numberguess');
         activeNumberGames.delete(groupId);
         return;
     }
 
     const hint = guess < game.target ? '⬆️ Mai mare' : '⬇️ Mai mic';
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n${hint}! Mai ai *${game.attemptsLeft}* încercări.`
-    });
+        text: `${hint}!\n\n${livesBar(game.attemptsLeft, NUMBER_GAME_MAX_ATTEMPTS)}`
+    }, 'numberguess');
 }
 
 // ============================================================
@@ -1020,8 +1049,8 @@ async function startScrambleGame(sock) {
     });
 
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🧩 Ghicește cuvântul\n\nCuvânt amestecat: *${scrambled}*\n\nAi ${SCRAMBLE_MAX_ATTEMPTS} încercări. Scrie răspunsul!`
-    });
+        text: `Cuvânt amestecat: *${scrambled}*\n\n${livesBar(SCRAMBLE_MAX_ATTEMPTS, SCRAMBLE_MAX_ATTEMPTS)}\n\nScrie răspunsul!`
+    }, 'scramble');
 }
 
 async function handleScrambleGuess(sock, game, guess) {
@@ -1030,8 +1059,8 @@ async function handleScrambleGuess(sock, game, guess) {
 
     if (normalizedGuess === normalizedWord) {
         await botSend(sock, groupId, {
-            text: `${BOT_NAME}\n🎉 Corect! Cuvântul era *${game.word}* ❤️\n\nScrie *cupidon scramble* pentru un nou cuvânt!`
-        });
+            text: `🎉 *Corect!* Cuvântul era *${game.word}* ❤️\n\nScrie *cupidon scramble* pentru un nou cuvânt!`
+        }, 'scramble');
         activeScrambleGames.delete(groupId);
         return;
     }
@@ -1039,29 +1068,31 @@ async function handleScrambleGuess(sock, game, guess) {
     game.attemptsLeft--;
     if (game.attemptsLeft <= 0) {
         await botSend(sock, groupId, {
-            text: `${BOT_NAME}\n😅 Ai epuizat încercările. Cuvântul era *${game.word}*.\n\nScrie *cupidon scramble* pentru altă rundă!`
-        });
+            text: `😅 Ai epuizat încercările. Cuvântul era *${game.word}*.\n\nScrie *cupidon scramble* pentru altă rundă!`
+        }, 'scramble');
         activeScrambleGames.delete(groupId);
         return;
     }
 
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n❌ Greșit! Mai ai *${game.attemptsLeft}* încercări.`
-    });
+        text: `❌ Greșit!\n\n${livesBar(game.attemptsLeft, SCRAMBLE_MAX_ATTEMPTS)}`
+    }, 'scramble');
 }
+
+const DICE_FACES = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅']; // index 1-6
 
 async function startDiceGame(sock) {
     const value = Math.floor(Math.random() * 6) + 1;
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🎲 Zarul a ieșit *${value}*️⃣\n\nScrie *cupidon dice* pentru altă aruncare!`
-    });
+        text: `${DICE_FACES[value]} Ai aruncat un *${value}*!\n\nScrie *cupidon dice* pentru altă aruncare!`
+    }, 'diceGame');
 }
 
 async function startCoinFlipGame(sock) {
-    const result = Math.random() > 0.5 ? '🪙 Cap' : '🪙 Pajură';
+    const result = Math.random() > 0.5 ? 'Cap' : 'Pajură';
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🪙 Flip coin\n\nRezultatul este: *${result}*\n\nScrie *cupidon coin* pentru altă încercare!`
-    });
+        text: `🪙 Moneda se învârte...\n\nA ieșit: *${result}*!\n\nScrie *cupidon coin* pentru altă încercare!`
+    }, 'coinGame');
 }
 
 async function startEightBallGame(sock) {
@@ -1074,9 +1105,7 @@ async function startEightBallGame(sock) {
         '🌟 Concentrează-te și întreabă din nou.'
     ];
     const answer = answers[drawIndex('eightball', answers.length)];
-    await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🔮 Magic 8 Ball\n\n${answer}`
-    });
+    await botSend(sock, groupId, { text: answer }, 'eightball');
 }
 
 async function startSlotMachineGame(sock) {
@@ -1086,14 +1115,14 @@ async function startSlotMachineGame(sock) {
     let result = '😅 Nu de data asta.';
 
     if (a === b && b === c) {
-        result = '🎉 Jackpot! Super tare!';
+        result = '🎉 *Jackpot!* Super tare!';
     } else if (a === b || b === c || a === c) {
         result = '😄 Aproape!';
     }
 
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🎰 Slot Machine\n\n${a} | ${b} | ${c}\n\n${result}\n\nScrie *cupidon slot* pentru altă rundă!`
-    });
+        text: `┃ ${a} ┃ ${b} ┃ ${c} ┃\n\n${result}\n\nScrie *cupidon slot* pentru altă rundă!`
+    }, 'slotGame');
 }
 
 const activeHangmanGames = new Map();
@@ -1113,8 +1142,8 @@ async function startHangmanGame(sock) {
     });
 
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🎯 Hangman\n\nCuvânt: *${getHangmanDisplay(word, new Set())}*\n\nScrie o literă sau cuvântul întreg. Ai ${HANGMAN_MAX_WRONG} greșeli.`
-    });
+        text: `Cuvânt: *${getHangmanDisplay(word, new Set())}*\n\n${livesBar(HANGMAN_MAX_WRONG, HANGMAN_MAX_WRONG)}\n\nScrie o literă sau cuvântul întreg.`
+    }, 'hangman');
 }
 
 async function handleHangmanGuess(sock, game, guessText) {
@@ -1123,7 +1152,7 @@ async function handleHangmanGuess(sock, game, guessText) {
 
     if (guess.length === 1 && /^[a-z]+$/.test(guess)) {
         if (game.guessedLetters.has(guess)) {
-            await botSend(sock, groupId, { text: `${BOT_NAME}\n⚠️ Ai încercat deja litera *${guess}*.` });
+            await botSend(sock, groupId, { text: `⚠️ Ai încercat deja litera *${guess}*.` }, 'hangman');
             return;
         }
 
@@ -1131,9 +1160,9 @@ async function handleHangmanGuess(sock, game, guessText) {
         if (game.word.includes(guess)) {
             const display = getHangmanDisplay(game.word, game.guessedLetters);
             if (display.replace(/\s/g, '').includes('_')) {
-                await botSend(sock, groupId, { text: `${BOT_NAME}\n✅ Litera *${guess}* este corectă!\n\nCuvânt: *${display}*` });
+                await botSend(sock, groupId, { text: `✅ Litera *${guess}* este corectă!\n\nCuvânt: *${display}*` }, 'hangman');
             } else {
-                await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect! Ai ghicit cuvântul *${game.word}*!` });
+                await botSend(sock, groupId, { text: `🎉 *Corect!* Ai ghicit cuvântul *${game.word}*!` }, 'hangman');
                 activeHangmanGames.delete(groupId);
             }
             return;
@@ -1141,29 +1170,29 @@ async function handleHangmanGuess(sock, game, guessText) {
 
         game.wrongGuesses += 1;
         if (game.wrongGuesses >= HANGMAN_MAX_WRONG) {
-            await botSend(sock, groupId, { text: `${BOT_NAME}\n😅 Ai epuizat greșelile. Cuvântul era *${game.word}*.` });
+            await botSend(sock, groupId, { text: `😅 Ai epuizat greșelile. Cuvântul era *${game.word}*.` }, 'hangman');
             activeHangmanGames.delete(groupId);
             return;
         }
 
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Litera *${guess}* nu se află în cuvânt.\nMai ai *${HANGMAN_MAX_WRONG - game.wrongGuesses}* greșeli.` });
+        await botSend(sock, groupId, { text: `❌ Litera *${guess}* nu se află în cuvânt.\n\n${livesBar(HANGMAN_MAX_WRONG - game.wrongGuesses, HANGMAN_MAX_WRONG)}` }, 'hangman');
         return;
     }
 
     if (guess === normalizeText(game.word)) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect! Ai ghicit cuvântul *${game.word}*!` });
+        await botSend(sock, groupId, { text: `🎉 *Corect!* Ai ghicit cuvântul *${game.word}*!` }, 'hangman');
         activeHangmanGames.delete(groupId);
         return;
     }
 
     game.wrongGuesses += 1;
     if (game.wrongGuesses >= HANGMAN_MAX_WRONG) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n😅 Ai epuizat greșelile. Cuvântul era *${game.word}*.` });
+        await botSend(sock, groupId, { text: `😅 Ai epuizat greșelile. Cuvântul era *${game.word}*.` }, 'hangman');
         activeHangmanGames.delete(groupId);
         return;
     }
 
-    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit! Mai ai *${HANGMAN_MAX_WRONG - game.wrongGuesses}* greșeli.` });
+    await botSend(sock, groupId, { text: `❌ Greșit!\n\n${livesBar(HANGMAN_MAX_WRONG - game.wrongGuesses, HANGMAN_MAX_WRONG)}` }, 'hangman');
 }
 
 const activeAnagramGames = new Map();
@@ -1173,18 +1202,18 @@ async function startAnagramGame(sock) {
     const word = ANAGRAM_WORDS[Math.floor(Math.random() * ANAGRAM_WORDS.length)];
     activeAnagramGames.set(groupId, { word });
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🧩 Anagramă\n\nGăsește cuvântul din: *${scrambleWord(word)}*`
-    });
+        text: `Găsește cuvântul din: *${scrambleWord(word)}*`
+    }, 'anagram');
 }
 
 async function handleAnagramGuess(sock, game, guessText) {
     if (normalizeText(guessText) === normalizeText(game.word)) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect! Cuvântul era *${game.word}*!` });
+        await botSend(sock, groupId, { text: `🎉 *Corect!* Cuvântul era *${game.word}*!` }, 'anagram');
         activeAnagramGames.delete(groupId);
         return;
     }
 
-    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+    await botSend(sock, groupId, { text: `❌ Greșit, mai încearcă!` }, 'anagram');
 }
 
 const activeEmojiQuizGames = new Map();
@@ -1201,17 +1230,17 @@ async function startEmojiQuizGame(sock) {
     const item = EMOJI_QUIZ_ITEMS[Math.floor(Math.random() * EMOJI_QUIZ_ITEMS.length)];
     activeEmojiQuizGames.set(groupId, { answer: item.answer });
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🧠 Emoji Quiz\n\nCe cuvânt reprezintă ${item.emoji}?\nScrie răspunsul!`
-    });
+        text: `Ce cuvânt reprezintă ${item.emoji}?\nScrie răspunsul!`
+    }, 'emojiquiz');
 }
 
 async function handleEmojiQuizGuess(sock, game, guessText) {
     if (normalizeText(guessText) === normalizeText(game.answer)) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect!` });
+        await botSend(sock, groupId, { text: `🎉 Corect!` }, 'emojiquiz');
         activeEmojiQuizGames.delete(groupId);
         return;
     }
-    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+    await botSend(sock, groupId, { text: `❌ Greșit, mai încearcă!` }, 'emojiquiz');
 }
 
 const activeMathGames = new Map();
@@ -1229,18 +1258,18 @@ async function startMathQuizGame(sock) {
 
     activeMathGames.set(groupId, { answer });
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🧮 Math Quiz\n\nRezolvă: *${expression}*\nScrie răspunsul!`
-    });
+        text: `Rezolvă: *${expression}*\nScrie răspunsul!`
+    }, 'mathquiz');
 }
 
 async function handleMathGuess(sock, game, guessText) {
     const guess = Number(guessText);
     if (!Number.isNaN(guess) && guess === game.answer) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect!` });
+        await botSend(sock, groupId, { text: `🎉 Corect!` }, 'mathquiz');
         activeMathGames.delete(groupId);
         return;
     }
-    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+    await botSend(sock, groupId, { text: `❌ Greșit, mai încearcă!` }, 'mathquiz');
 }
 
 const activeColorGames = new Map();
@@ -1257,17 +1286,17 @@ async function startColorGame(sock) {
     const item = COLOR_ITEMS[Math.floor(Math.random() * COLOR_ITEMS.length)];
     activeColorGames.set(groupId, { answer: item.answer });
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🎨 Color Guess\n\nCare culoare este ${item.emoji}?\nScrie răspunsul!`
-    });
+        text: `Care culoare este ${item.emoji}?\nScrie răspunsul!`
+    }, 'colorguess');
 }
 
 async function handleColorGuess(sock, game, guessText) {
     if (normalizeText(guessText) === normalizeText(game.answer)) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect!` });
+        await botSend(sock, groupId, { text: `🎉 Corect!` }, 'colorguess');
         activeColorGames.delete(groupId);
         return;
     }
-    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+    await botSend(sock, groupId, { text: `❌ Greșit, mai încearcă!` }, 'colorguess');
 }
 
 const activeTriviaGames = new Map();
@@ -1283,17 +1312,17 @@ async function startTriviaGame(sock) {
     const item = TRIVIA_QUESTIONS[Math.floor(Math.random() * TRIVIA_QUESTIONS.length)];
     activeTriviaGames.set(groupId, { answer: item.answer });
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🧠 Trivia\n\n${item.question}\nScrie răspunsul!`
-    });
+        text: `${item.question}\nScrie răspunsul!`
+    }, 'trivia');
 }
 
 async function handleTriviaGuess(sock, game, guessText) {
     if (normalizeText(guessText) === normalizeText(game.answer)) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect!` });
+        await botSend(sock, groupId, { text: `🎉 Corect!` }, 'trivia');
         activeTriviaGames.delete(groupId);
         return;
     }
-    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+    await botSend(sock, groupId, { text: `❌ Greșit, mai încearcă!` }, 'trivia');
 }
 
 const activeAnimalGames = new Map();
@@ -1356,17 +1385,17 @@ async function startAnimalGame(sock) {
     const item = ANIMAL_QUIZ_ITEMS[Math.floor(Math.random() * ANIMAL_QUIZ_ITEMS.length)];
     activeAnimalGames.set(groupId, { answer: item.answer });
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n🐾 Animal Guess\n\nCe animal este ${item.emoji}?\nScrie răspunsul!`
-    });
+        text: `Ce animal este ${item.emoji}?\nScrie răspunsul!`
+    }, 'animalguess');
 }
 
 async function handleAnimalGuess(sock, game, guessText) {
     if (normalizeText(guessText) === normalizeText(game.answer)) {
-        await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect!` });
+        await botSend(sock, groupId, { text: `🎉 Corect!` }, 'animalguess');
         activeAnimalGames.delete(groupId);
         return;
     }
-    await botSend(sock, groupId, { text: `${BOT_NAME}\n❌ Greșit, mai încearcă!` });
+    await botSend(sock, groupId, { text: `❌ Greșit, mai încearcă!` }, 'animalguess');
 }
 
 // ============================================================
@@ -1502,13 +1531,13 @@ function buildRelationshipMessage(type) {
     if (type === 'lovemeter') {
         const pct = Math.floor(Math.random() * 41) + 60;
         const note = pick(['pare să fie o combinație foarte bună', 'chimia este evidentă', 'există mult potențial între voi', 'se simte sincer și cald'], 'lovemeter_note');
-        return `💖 Love Meter: ${pct}% — ${note}!`;
+        return `💖 *${pct}%* — ${note}!`;
     }
 
     if (type === 'compatibility') {
         const pct = Math.floor(Math.random() * 41) + 60;
         const note = pick(['sunteți foarte complementari', 'aveți valori aliniate', 'înțelegerea e la un nivel înalt', 'potențial de lungă durată'], 'compatibility_note');
-        return `💕 Compatibilitate: ${pct}% — ${note}!`;
+        return `💞 *${pct}%* — ${note}!`;
     }
 
     if (type === 'memory') {
@@ -1524,7 +1553,7 @@ function buildRelationshipMessage(type) {
     }
 
     if (type === 'countdown') {
-        return `⏳ ${getCountdownMessage()}`;
+        return getCountdownMessage();
     }
 
     return pick(relationshipPool, 'relationship');
@@ -1677,20 +1706,20 @@ async function sendMilestoneMessage(sock, type) {
 
     if (type === 'sapt' || type === 'saptamana') {
         messages = weeklyMessages;
-        title = "💖 Am mai trecut o săptămână împreună";
+        title = '💖 O săptămână împreună';
     } else if (type === 'luna') {
         messages = monthlyMessages;
-        title = "🌹 Am mai trecut o lună împreună";
+        title = '🌹 O lună împreună';
     } else if (type === 'an') {
         messages = yearlyMessages;
-        title = "❤️ Am mai trecut un an împreună";
+        title = '❤️ Un an împreună';
     }
 
     const randomMsg = messages[Math.floor(Math.random() * messages.length)];
 
     await botSend(sock, groupId, {
-        text: `${BOT_NAME}\n${title}\n\n${randomMsg}\n\nTe iubesc mult, Stefania ❤️`
-    });
+        text: `*${title}*\n\n${randomMsg}\n\nTe iubesc mult, Stefania ❤️`
+    }, 'milestone');
 }
 
 async function sendTextWithImage(sock, text, type = 'general', folderPath = null) {
@@ -1736,8 +1765,8 @@ function armRiddleTimeout(sock) {
     riddleTimeout = setTimeout(async () => {
         if (currentRiddle) {
             await botSend(sock, groupId, {
-                text: `${BOT_NAME}\n⏰ Timpul a expirat!\nRăspunsul era: **${currentRiddle.answer}** ❤️`
-            });
+                text: `⏰ Timpul a expirat!\nRăspunsul era: *${currentRiddle.answer}* ❤️`
+            }, 'riddle');
             currentRiddle = null;
             wrongAnswerCount = 0;
         }
@@ -1779,7 +1808,7 @@ async function startBot() {
         shutdownAnnounced = true;
         console.log(`🛑 Se primește oprirea (${signal})...`);
         try {
-            await botSend(sock, groupId, { text: `${BOT_NAME}\n😴 Cupidon pleacă, ne vedem data viitoare!` });
+            await botSend(sock, groupId, { text: `😴 Cupidon pleacă, ne vedem data viitoare!` });
         } catch (error) {
             console.log('⚠️ Nu s-a putut trimite mesajul de închidere:', error.message);
         }
@@ -1805,7 +1834,7 @@ async function startBot() {
             console.log('✅ Cupidon este pornit și conectat!');
             if (!startupAnnounced) {
                 startupAnnounced = true;
-                botSend(sock, groupId, { text: `${BOT_NAME}\n🤖 Cupidon este pornit, sunt gata de folosire!` })
+                botSend(sock, groupId, { text: `🤖✨ Cupidon este online și gata de treabă!\nScrie *cupidon help* pentru meniu.` })
                     .catch(() => {});
             }
             if (TEST_MODE) {
@@ -1816,9 +1845,8 @@ async function startBot() {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             console.log('❌ Conexiune închisă. Cod:', statusCode, '-', lastDisconnect?.error?.message);
 
-            // FIX: this used to be `statusCode === 401 || (statusCode === 401 && ...)`,
-            // a self-redundant condition (the second clause can never add anything
-            // the first one didn't already cover). Simplified to the actual check.
+            // FIX (carried over): was `statusCode === 401 || (statusCode === 401 && ...)`,
+            // a self-redundant condition. Simplified to the actual check.
             const loggedOut = statusCode === 401;
 
             if (loggedOut) {
@@ -1883,7 +1911,7 @@ async function startBot() {
             }
 
             if (activeGame.phase === 'ready' && text && !isStartCommand) {
-                await botSend(sock, groupId, { text: `${BOT_NAME}\n❗ Ai ales simbolul *${activeGame.currentSymbol}*. Spune *cupidon start* pentru a porni tabla de joc.` });
+                await botSend(sock, groupId, { text: `❗ Ai ales simbolul *${activeGame.currentSymbol}*. Spune *cupidon start* pentru a porni tabla de joc.` }, 'tictactoe');
                 return;
             }
         }
@@ -1949,7 +1977,7 @@ async function startBot() {
 
         if (currentRiddle) {
             if (text.includes(currentRiddle.answer.toLowerCase())) {
-                await botSend(sock, groupId, { text: `${BOT_NAME}\n🎉 Corect! Ești genială ❤️` });
+                await botSend(sock, groupId, { text: `🎉 *Corect!* Ești genială ❤️` }, 'riddle');
                 clearTimeout(riddleTimeout);
                 currentRiddle = null;
                 wrongAnswerCount = 0;
@@ -1958,15 +1986,16 @@ async function startBot() {
                 wrongAnswerCount++;
                 if (wrongAnswerCount >= MAX_WRONG_ANSWERS) {
                     await botSend(sock, groupId, {
-                        text: `${BOT_NAME}\n❌ Ai greșit de ${MAX_WRONG_ANSWERS} ori! Ai pierdut 😅\nRăspunsul era: **${currentRiddle.answer}** ❤️`
-                    });
+                        text: `❌ Ai greșit de ${MAX_WRONG_ANSWERS} ori! Ai pierdut 😅\nRăspunsul era: *${currentRiddle.answer}* ❤️`
+                    }, 'riddle');
                     clearTimeout(riddleTimeout);
                     currentRiddle = null;
                     wrongAnswerCount = 0;
                 } else {
+                    const remaining = MAX_WRONG_ANSWERS - wrongAnswerCount;
                     await botSend(sock, groupId, {
-                        text: `${BOT_NAME}\n❌ Greșit, mai încearcă! (${wrongAnswerCount}/${MAX_WRONG_ANSWERS})`
-                    });
+                        text: `❌ Greșit, mai încearcă!\n\n${livesBar(remaining, MAX_WRONG_ANSWERS)}`
+                    }, 'riddle');
                 }
                 return;
             }
@@ -1986,19 +2015,16 @@ async function startBot() {
                         await sendCommandReply(sock, typeArg);
                     }
                 } else {
-                    await botSend(sock, groupId, { text: `${BOT_NAME}\nUsage: cupidon sendnow <romantic|rizz|flirt|pickup|riddle>` });
+                    await botSend(sock, groupId, { text: `Usage: cupidon sendnow <romantic|rizz|flirt|pickup|riddle>` });
                 }
                 return;
             }
 
-            // FIX: was `text.includes('impreuna') || text.includes('impreuna')` — a
-            // literal duplicate of the same check. normalizeText() already strips
-            // diacritics, so "împreună" and "impreuna" normalize to the same
-            // string; only one branch is needed.
+            // FIX (carried over): was a literal duplicate `includes('impreuna') || includes('impreuna')`.
             if (text.includes('impreuna')) {
                 await botSend(sock, groupId, {
-                    text: `${BOT_NAME}\n❤️ Sunteți împreună de:\n**${getTimeTogether()}**`
-                });
+                    text: `❤️ Sunteți împreună de:\n*${getTimeTogether()}*`
+                }, 'relationship');
                 return;
             }
 
@@ -2008,24 +2034,27 @@ async function startBot() {
             }
 
             if (text.includes('help')) {
-                await botSend(sock, groupId, { text: HELP_TEXT });
+                // Sent raw (bypassing decorateMessage) since the help menu already
+                // has its own complete card/banner design — wrapping it again would
+                // just stack a second, redundant header on top.
+                await trackSendMessage(sock, groupId, { text: HELP_TEXT });
                 return;
             }
 
             if (text.includes('lovemeter')) {
-                await botSend(sock, groupId, { text: buildRelationshipMessage('lovemeter') });
+                await botSend(sock, groupId, { text: buildRelationshipMessage('lovemeter') }, 'lovemeter');
                 return;
             }
 
             if (text.includes('compatibility')) {
-                await botSend(sock, groupId, { text: buildRelationshipMessage('compatibility') });
+                await botSend(sock, groupId, { text: buildRelationshipMessage('compatibility') }, 'compatibility');
                 return;
             }
 
             if (text.includes('stefi') || text.includes('stefania')) {
                 await sendTextWithImage(
                     sock,
-                    `${BOT_NAME}\n🖼️ Iată o imagine specială pentru tine! Stefania`,
+                    `Iată o imagine specială pentru tine! Stefania 🖼️`,
                     'general',
                     path.join(__dirname, 'Stefania', 'poze')
                 );
@@ -2035,7 +2064,7 @@ async function startBot() {
             if (text.includes('denis')) {
                 await sendTextWithImage(
                     sock,
-                    `${BOT_NAME}\n🖼️ Iată o imagine specială pentru tine! Denis`,
+                    `Iată o imagine specială pentru tine! Denis 🖼️`,
                     'general',
                     path.join(__dirname, 'Denis', 'poze')
                 );
@@ -2044,38 +2073,40 @@ async function startBot() {
 
             if (text.includes('temp')) {
                 const time = getTimeTogether().split(',')[0];
-                await sendImageFromFolder(sock, path.join(__dirname, 'Denis', 'poze'), `${BOT_NAME}\n🖼️`, groupId);
-                await sendImageFromFolder(sock, path.join(__dirname, 'Stefania', 'poze'), `${BOT_NAME}\n🖼️`, groupId);
+                await sendImageFromFolder(sock, path.join(__dirname, 'Denis', 'poze'), `🖼️`, groupId);
+                await sendImageFromFolder(sock, path.join(__dirname, 'Stefania', 'poze'), `🖼️`, groupId);
                 await botSend(sock, groupId, {
-                    text: `${BOT_NAME}\n🎉 Ați ajuns la ❤️**${time}**❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
-                });
+                    text: `🎉 Ați ajuns la ❤️ *${time}* ❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
+                }, 'milestone');
                 return;
             }
 
             if (text.includes('memory')) {
-                await sendTextWithImage(sock, buildRelationshipMessage('memory'), 'relationship');
+                await sendTextWithImage(sock, buildRelationshipMessage('memory'), 'memory');
                 return;
             }
 
             if (text.includes('firstdate')) {
-                await botSend(sock, groupId, { text: buildRelationshipMessage('firstdate') });
+                await botSend(sock, groupId, { text: buildRelationshipMessage('firstdate') }, 'firstdate');
                 return;
             }
 
             if (text.includes('anniversary')) {
-                await botSend(sock, groupId, { text: buildRelationshipMessage('anniversary') });
+                await botSend(sock, groupId, { text: buildRelationshipMessage('anniversary') }, 'anniversary');
                 return;
             }
 
             if (text.includes('countdown')) {
-                await botSend(sock, groupId, { text: buildRelationshipMessage('countdown') });
+                await botSend(sock, groupId, { text: buildRelationshipMessage('countdown') }, 'countdown');
                 return;
             }
 
-            // FIX: was `text.includes('imagineazati') || text.includes('imagineaza') || text.includes('imagineaza')`
-            // — the third clause was an exact duplicate of the second.
+            // FIX (carried over): dropped the tripled 'imagineaza' clause, and this
+            // no longer hand-prepends BOT_NAME into the body — that used to double
+            // up the branding (the outer card header plus a second "🏹 Cupidon"
+            // line baked into the text itself). It now just uses its own type.
             if (text.includes('imagineazati') || text.includes('imagineaza')) {
-                await botSend(sock, groupId, { text: `${BOT_NAME}\n${buildImagineMessage()}` }, 'romantic');
+                await botSend(sock, groupId, { text: buildImagineMessage() }, 'imagine');
                 return;
             }
 
@@ -2111,7 +2142,7 @@ async function startBot() {
                 return;
             }
 
-            // FIX: was `text.includes('lovequote') || text.includes('lovequote')` — duplicate clause.
+            // FIX (carried over): was a literal duplicate `includes('lovequote') || includes('lovequote')`.
             if (text.includes('lovequote')) {
                 await sendCommandReply(sock, 'lovequote');
                 return;
@@ -2132,10 +2163,10 @@ async function startBot() {
                 return;
             }
 
-            // FIX: alt-text kept as one run-together, unaccented word ('bunademineata')
-            // that normalizeText() (which preserves spaces) can never produce from
-            // "bună dimineața" — the normalized form is "buna dimineata" (with a
-            // space), so the old alt-match was dead. Same issue below for goodnight.
+            // FIX (carried over): alt-text used to be a run-together, unaccented
+            // word that normalizeText() (which preserves spaces) could never
+            // produce from "bună dimineața" / "bună noapte" — now matches what
+            // normalizeText() actually outputs.
             if (text.includes('goodmorning') || text.includes('buna dimineata')) {
                 await sendCommandReply(sock, 'goodmorning');
                 return;
@@ -2156,12 +2187,10 @@ async function startBot() {
                 return;
             }
 
-            // FIX: 'foreheadkiss', 'cheekkiss' and 'handkiss' all *contain* the
-            // substring 'kiss' (e.g. "foreheadkiss".includes('kiss') === true).
-            // They used to be checked AFTER the generic 'kiss' branch below, so
-            // the generic check always intercepted them first and those three
-            // commands could never be reached. Moving them above 'kiss' (but
-            // after the still-more-specific 'kissmessage') fixes all three.
+            // FIX (carried over): 'foreheadkiss'/'cheekkiss'/'handkiss' all contain
+            // the substring 'kiss', so they must be checked before the generic
+            // 'kiss' branch below or the generic one always wins and these three
+            // commands can never be reached.
             if (text.includes('foreheadkiss')) {
                 await sendCommandReply(sock, 'foreheadkiss');
                 return;
@@ -2237,12 +2266,9 @@ async function startBot() {
                 return;
             }
 
-            // FIX: 'emojiquiz' (the game further below) contains the substring
-            // 'emoji', so the generic 'emoji' message-pool command used to
-            // intercept it first and the emojiquiz game could never start.
-            // Checking 'emojiquiz' here, before the generic 'emoji' branch,
-            // fixes it (and the duplicate 'emojiquiz' check further down,
-            // after 'quiz', has been removed since it was unreachable too).
+            // FIX (carried over): 'emojiquiz' contains the substring 'emoji' (and
+            // 'quiz'), so it must be checked before both those generic branches
+            // or it can never be reached.
             if (text.includes('emojiquiz')) {
                 await startEmojiQuizGame(sock);
                 return;
@@ -2293,7 +2319,7 @@ async function startBot() {
                 return;
             }
 
-            // FIX: was `text.includes('dedicatie') || text.includes('dedicatie')` — duplicate clause.
+            // FIX (carried over): was a literal duplicate `includes('dedicatie') || includes('dedicatie')`.
             if (text.includes('dedicatie')) {
                 await sendCommandReply(sock, 'dedicatie');
                 return;
@@ -2327,8 +2353,8 @@ async function startBot() {
 
             if (text.includes('games') || text.includes('jocuri')) {
                 await botSend(sock, groupId, {
-                    text: `${BOT_NAME}\n🎮 Jocuri disponibile\n\n🧠 riddle / ghicitoare\n🎲 tictactoe\n🪨 rps\n🧠 quiz\n🔢 numar\n🎲 dice\n🪙 coin\n🔮 8ball / fortune\n🎰 slot\n🧩 scramble\n🎯 hangman\n🧩 anagram\n🧠 emojiquiz\n🧮 math\n🎨 color\n🎲 choose\n\nScrie *cupidon <nume joc>* pentru a începe!`
-                });
+                    text: `🧠 riddle / ghicitoare\n🎮 tictactoe\n🪨 rps\n🧠 quiz\n🔢 numar\n🎲 dice\n🪙 coin\n🔮 8ball / fortune\n🎰 slot\n🧩 scramble\n🎯 hangman\n🧩 anagram\n🧠 emojiquiz\n🧮 math\n🎨 color\n🎲 choose\n\nScrie *cupidon <nume joc>* pentru a începe!`
+                }, 'help');
                 return;
             }
 
@@ -2408,9 +2434,9 @@ async function startBot() {
                 const options = chooseIndex >= 0 ? parts.slice(chooseIndex + 1) : [];
                 if (options.length >= 2) {
                     const picked = options[Math.floor(Math.random() * options.length)];
-                    await botSend(sock, groupId, { text: `${BOT_NAME}\n🎲 Alege!\n\nAm ales: *${picked}*` });
+                    await botSend(sock, groupId, { text: `🎲 Am ales: *${picked}*` });
                 } else {
-                    await botSend(sock, groupId, { text: `${BOT_NAME}\n⚠️ Folosește: *cupidon choose opțiune1 opțiune2*` });
+                    await botSend(sock, groupId, { text: `⚠️ Folosește: *cupidon choose opțiune1 opțiune2*` });
                 }
                 return;
             }
@@ -2421,7 +2447,7 @@ async function startBot() {
             }
 
             await botSend(sock, groupId, {
-                text: `${BOT_NAME}\nNu am înțeles comanda 🤔\nÎncearcă: *cupidon help* si Ghideaza-te de acolo`
+                text: `Nu am înțeles comanda 🤔\nÎncearcă: *cupidon help* și ghidează-te de acolo`
             });
             return;
         }
@@ -2446,8 +2472,8 @@ async function startBot() {
     cron.schedule('0 0 * * *', async () => {
         const time = getTimeTogether().split(',')[0];
         await botSend(sock, groupId, {
-            text: `${BOT_NAME}\n🎉 Ați ajuns la ❤️**${time}**❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
-        });
+            text: `🎉 Ați ajuns la ❤️ *${time}* ❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
+        }, 'milestone');
     }, { timezone: 'Europe/Bucharest' });
 }
 

@@ -2374,7 +2374,11 @@ async function startBot() {
         shutdownAnnounced = true;
         console.log(`🛑 Se primește oprirea (${signal})...`);
         try {
-            await botSend(sock, groupId, { text: `😴 Cupidon pleacă, ne vedem data viitoare!` });
+            if (sock && sock.user && sock.sendMessage) {
+                await botSend(sock, groupId, { text: `😴 Cupidon pleacă, ne vedem data viitoare!` });
+            } else {
+                console.log('⚠️ Socket nu e conectat, nu se trimite mesajul de închidere.');
+            }
         } catch (error) {
             console.log('⚠️ Nu s-a putut trimite mesajul de închidere:', error.message);
         }
@@ -3176,4 +3180,8 @@ async function startBot() {
     }, { timezone: 'Europe/Bucharest' });
 }
 
-startBot();
+startBot().catch((error) => {
+    console.error('❌ CRITICAL: Failed to initialize bot:', error);
+    console.error('Stack trace:', error.stack);
+    console.log('⚠️ Web server remains active. Check auth directory and environment variables.');
+});

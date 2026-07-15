@@ -22,8 +22,19 @@ server.on('error', (error) => {
     console.log('⚠️ Web server error:', error.message);
 });
 
+// Keep process alive no matter what
+process.on('uncaughtException', (err) => {
+    console.error('❌ Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+    console.error('❌ Unhandled Rejection:', reason);
+});
 
-const startDate = new Date('2026-06-24T00:00:00');
+// Prevent Railway from killing idle process
+setInterval(() => {
+    console.log(`💓 Heartbeat - ${new Date().toISOString()}`);
+}, 5 * 60 * 1000); // every 5 minutes
+
 const groupId = '58145535742158@lid';
 
 // AI integration removed — Cupidon will use only built-in message pools.
@@ -2413,8 +2424,9 @@ async function startBot() {
         process.once('SIGTERM', () => handleShutdown('SIGTERM'));
         process.once('exit', () => clearPidFile());
 
-        let botStartupTimestamp = Math.floor(Date.now() / 1000);
+                let botStartupTimestamp = Math.floor(Date.now() / 1000);
 
+        // ==================== CONNECTION HANDLER ====================
         sock.ev.on('connection.update', (update) => {
             const { connection, qr, pairingCode, lastDisconnect } = update;
 
@@ -2439,25 +2451,20 @@ async function startBot() {
             if (connection === 'close') {
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
                 const message = lastDisconnect?.error?.message || lastDisconnect?.error?.output?.payload?.message || 'Conexiune închisă';
-                console.log('❌ Conexiune închisă. Cod:', statusCode, '-', message);
+                console.log(`❌ Conexiune închisă. Status: ${statusCode} - ${message}`);
 
                 const loggedOut = statusCode === 401;
                 const conflict = statusCode === 440 || /conflict|replaced/i.test(message);
 
                 if (loggedOut) {
-                    console.log('🚪 Autentificarea a eșuat. Se resetează sesiunea și se încearcă reconectarea.');
+                    console.log('🔄 Logged out. Resetting auth...');
                     restartWithFreshAuth(AUTH_DIR);
                 } else if (conflict) {
-                    console.log('⚠️ O altă sesiune WhatsApp este activă. Se oprește botul pentru a evita bucla de reconectare. Repornește-l manual după ce sesiunea veche a fost închisă.');
-                    try {
-                        sock?.ws?.close?.();
-                    } catch (error) {
-                        // ignore cleanup failures
-                    }
-                    process.exit(0);
+                    console.log('⚠️ Conflict detected (session active elsewhere). Waiting 30s before retry...');
+                    setTimeout(() => startBot(), 30000);
                 } else {
-                    console.log('🔁 Reîncerc conectarea în 5 secunde...');
-                    setTimeout(() => startBot(), 5000);
+                    console.log('🔁 Reconnecting in 10 seconds...');
+                    setTimeout(() => startBot(), 10000);
                 }
             }
         });

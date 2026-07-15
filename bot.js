@@ -3,16 +3,16 @@ const cron = require('node-cron');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
+const pidFile = path.join(__dirname, '.bot.pid');
 
 const startDate = new Date('2026-06-24T00:00:00');
-const groupId = '120363409752411368@g.us';
-
-const BOT_NAME = '🏹 *Cupidon*';
-const RIDDLE_TIMEOUT_MS = 5 * 60 * 1000;
-const MAX_WRONG_ANSWERS = 3;
-const TEST_MODE = false;
+const groupId = '58145535742158@lid';
 
 // AI integration removed — Cupidon will use only built-in message pools.
+// Riddle timeout, max wrong answers, and test mode all now live in
+// /cupidon-settings.json (see the SETTINGS section below) instead of
+// being hardcoded here, so they can be changed with "cupidon setari".
 
 const botSentIds = new Set();
 let startupAnnounced = false;
@@ -36,6 +36,7 @@ const FOOTER = '🏹 Cupidon';
 const styleMap = {
     general:        { icon: '💖', title: 'Cupidon' },
     help:           { icon: '📖', title: 'Ghid' },
+    settings:       { icon: '⚙️', title: 'Setări', category: 'S I S T E M' },
 
     // LOVE
     riddle:         { icon: '🧠', title: 'Ghicitoare', category: 'G H I C I T O A R E' },
@@ -51,6 +52,7 @@ const styleMap = {
     goodmorning:    { icon: '🌞', title: 'Bună Dimineața', category: 'L O V E' },
     goodnight:      { icon: '🌙', title: 'Noapte Bună', category: 'L O V E' },
     imagine:        { icon: '💭', title: 'Imaginează-ți', category: 'L O V E' },
+    amintiri:       { icon: '📸', title: 'Amintiri', category: 'R E L A Ț I E' },
 
     // ACȚIUNI
     hugmessage:     { icon: '🤗', title: 'Îmbrățișare', category: 'A C Ț I U N I' },
@@ -88,6 +90,7 @@ const styleMap = {
     punish:         { icon: '😈', title: 'Pedeapsă', category: 'F U N' },
     reward:         { icon: '🏆', title: 'Recompensă', category: 'F U N' },
     website:        { icon: '🌐', title: 'Website', category: 'F U N' },
+    spotify:        { icon: '🎵', title: 'Spotify', category: 'F U N' },
 
     // RELAȚIE
     relationship:   { icon: '💕', title: 'Relație', category: 'R E L A Ț I E' },
@@ -115,20 +118,56 @@ const styleMap = {
     scramble:       { icon: '🧩', title: 'Cuvânt Amestecat', category: 'G A M E' },
     tictactoe:      { icon: '🎮', title: 'TicTacToe', category: 'G A M E' },
     rps:            { icon: '🪨', title: 'Piatră, Foarfecă, Hârtie', category: 'G A M E' },
-    quiz:           { icon: '🧠', title: 'Quiz Cuplu', category: 'G A M E' }
+    quiz:           { icon: '🧠', title: 'Quiz Cuplu', category: 'G A M E' },
+    game100:        { icon: '🔢', title: '100', category: 'G A M E' }
 };
+
+// Unicode "bold sans" lookalikes for plain ASCII letters/digits — gives
+// titles a distinct, poster-like look without relying on WhatsApp's own
+// *bold* markdown (which some clients render inconsistently in headers).
+// Romanian diacritics (ă â î ș ț) have no bold equivalent in this block,
+// so they're left as-is, which still reads fine mixed in.
+const BOLD_MAP = {
+    a:'𝗮', b:'𝗯', c:'𝗰', d:'𝗱', e:'𝗲', f:'𝗳', g:'𝗴', h:'𝗵', i:'𝗶', j:'𝗷',
+    k:'𝗸', l:'𝗹', m:'𝗺', n:'𝗻', o:'𝗼', p:'𝗽', q:'𝗾', r:'𝗿', s:'𝘀', t:'𝘁',
+    u:'𝘂', v:'𝘃', w:'𝘄', x:'𝘅', y:'𝘆', z:'𝘇',
+    A:'𝗔', B:'𝗕', C:'𝗖', D:'𝗗', E:'𝗘', F:'𝗙', G:'𝗚', H:'𝗛', I:'𝗜', J:'𝗝',
+    K:'𝗞', L:'𝗟', M:'𝗠', N:'𝗡', O:'𝗢', P:'𝗣', Q:'𝗤', R:'𝗥', S:'𝗦', T:'𝗧',
+    U:'𝗨', V:'𝗩', W:'𝗪', X:'𝗫', Y:'𝗬', Z:'𝗭',
+    '0':'𝟬', '1':'𝟭', '2':'𝟮', '3':'𝟯', '4':'𝟰', '5':'𝟱', '6':'𝟲', '7':'𝟳', '8':'𝟴', '9':'𝟵'
+};
+
+function toBoldUnicode(str) {
+    return String(str).split('').map(ch => BOLD_MAP[ch] || ch).join('');
+}
+
+// ============================================================
+// VISUAL CARD (v2)
+// ------------------------------------------------------------
+// ✦──────────────────✦
+//    ✧ C A T E G O R Y ✧
+//    🧠  𝗧𝗶𝘁𝗹𝘂
+// ✦──────────────────✦
+//
+// body
+//
+// 🏹 Cupidon · cupidon help
+// ============================================================
 
 function decorateMessage(body, type = 'general') {
     const style = styleMap[type] || styleMap.general;
     const cleanBody = String(body).replace(/\n{3,}/g, '\n\n').trim();
+    const edge = '✦' + RULE + '✦';
 
     const lines = [];
-    if (style.category) lines.push(`✦ ${style.category} ✦`);
-    lines.push(`${style.icon} *${style.title}*`);
-    lines.push(RULE);
+    lines.push(edge);
+    if (style.category) lines.push(`   ✧ ${style.category} ✧`);
+    lines.push(`   ${style.icon}  ${toBoldUnicode(style.title)}`);
+    lines.push(edge);
+    lines.push('');
     lines.push(cleanBody);
-    lines.push(RULE);
-    lines.push(FOOTER);
+    lines.push('');
+    lines.push(`${FOOTER} · cupidon help`);
 
     return lines.join('\n');
 }
@@ -193,6 +232,16 @@ const messagePool = [
 { type: 'riddle', text: '🧠 Ghicitoare #48\nCe se sparge fara sunet?', answer: 'Inima' },
 { type: 'riddle', text: '🧠 Ghicitoare #49\nCe este peste tot dar nu poate fi prins?', answer: 'Aer' },
 { type: 'riddle', text: '🧠 Ghicitoare #50\nCe se misca fara sa plece niciodata din loc?', answer: 'Ceas' },
+{ type: 'riddle', text: '🧠 Ghicitoare #51\nCe are patru roți dar nu se mișcă singur?', answer: 'Carucior' },
+{ type: 'riddle', text: '🧠 Ghicitoare #52\nCe poți sparge fără să îl atingi vreodată?', answer: 'Tacere' },
+{ type: 'riddle', text: '🧠 Ghicitoare #53\nCe are inimă dar nu bate?', answer: 'Artichoke' },
+{ type: 'riddle', text: '🧠 Ghicitoare #54\nCe intra uscat si iese ud?', answer: 'Buretele' },
+{ type: 'riddle', text: '🧠 Ghicitoare #55\nCe are un pat dar nu doarme niciodata?', answer: 'Raul' },
+{ type: 'riddle', text: '🧠 Ghicitoare #56\nCine face zgomot dar nu are gura?', answer: 'Tunetul' },
+{ type: 'riddle', text: '🧠 Ghicitoare #57\nCe poți ține în mâna stângă dar nu în cea dreaptă?', answer: 'Mana dreapta' },
+{ type: 'riddle', text: '🧠 Ghicitoare #58\nCe are un inel dar nu are deget?', answer: 'Telefonul' },
+{ type: 'riddle', text: '🧠 Ghicitoare #59\nCe devine ud in timp ce se usuca?', answer: 'Prosopul' },
+{ type: 'riddle', text: '🧠 Ghicitoare #60\nCe poate calatori in jurul lumii ramanand intr-un colt?', answer: 'Timbrul' },
 ];
 
 function buildRichContentPool(templates, count, wordBank = []) {
@@ -453,19 +502,363 @@ const contentLibrary = {
     ], 1)
 };
 
-const morningMessages = [
-    '🌞 Bună dimineața, iubirea mea, ce frumoasă ești tu ❤️',
-    '🌞 Bună dimineața, prințesa mea! Sper să ai o zi la fel de frumoasă ca tine ❤️',
-    '🌞 Bună dimineața! Primul gând al dimineții e la tine ❤️',
-    '🌞 Bună dimineața, cea mai frumoasă fată din galaxie ❤️'
-];
+// ============================================================
+// SETTINGS (cupidon setari)
+// ------------------------------------------------------------
+// Persisted to disk as JSON so changes survive restarts. Controlled
+// entirely through an interactive WhatsApp list menu — no need to
+// touch the code to tweak how the bot behaves day to day.
+// ============================================================
 
-const HELP_TEXT = `╭─────✦ 💘 ✦─────╮
-     🏹 *CUPIDON*
-  Love • Fun • Games
-╰─────✦ 💘 ✦─────╯
+const SETTINGS_PATH = path.join(__dirname, 'cupidon-settings.json');
+
+const DEFAULT_SETTINGS = {
+    testMode: false,
+    hourlyMessagesEnabled: true,
+    dailyMilestoneEnabled: true,
+    riddleTimeoutMinutes: 5,
+    maxWrongAnswers: 3,
+    hourlyMessageTypes: ['romantic', 'rizz', 'flirt', 'pickup'],
+    customMessages: {}
+};
+
+function loadSettings() {
+    try {
+        if (fs.existsSync(SETTINGS_PATH)) {
+            const raw = fs.readFileSync(SETTINGS_PATH, 'utf8');
+            const parsed = JSON.parse(raw);
+            return { ...DEFAULT_SETTINGS, ...parsed };
+        }
+    } catch (error) {
+        console.log('⚠️ Nu am putut citi cupidon-settings.json, folosesc valorile implicite:', error.message);
+    }
+    return { ...DEFAULT_SETTINGS };
+}
+
+function saveSettings() {
+    try {
+        fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
+    } catch (error) {
+        console.log('⚠️ Nu am putut salva cupidon-settings.json:', error.message);
+    }
+}
+
+let settings = loadSettings();
+
+function riddleTimeoutMs() {
+    return (settings.riddleTimeoutMinutes || DEFAULT_SETTINGS.riddleTimeoutMinutes) * 60 * 1000;
+}
+
+function maxWrongAnswers() {
+    return settings.maxWrongAnswers || DEFAULT_SETTINGS.maxWrongAnswers;
+}
+
+const SETTINGS_CATEGORY_LIST = Object.keys(contentLibrary).filter(Boolean).sort();
+const SETTINGS_FLOW = new Map();
+const TIMEOUT_CYCLE = [2, 5, 10, 15];
+const LIVES_CYCLE = [2, 3, 4, 5];
+
+function cycleValue(current, cycle) {
+    const idx = cycle.indexOf(current);
+    return cycle[(idx + 1) % cycle.length];
+}
+
+function onOff(flag) {
+    return flag ? '✅ Activat' : '⛔ Dezactivat';
+}
+
+function isValidSettingsCategory(value) {
+    const normalized = normalizeText(value || '');
+    return SETTINGS_CATEGORY_LIST.some(category => normalizeText(category) === normalized);
+}
+
+function getSettingsCategoryListText() {
+    return SETTINGS_CATEGORY_LIST.slice(0, 24).join(', ');
+}
+
+function getSettingsSummaryText() {
+    return `⚙️ Setările curente:\n\n` +
+        `🧪 Test Mode: ${onOff(settings.testMode)}\n` +
+        `⏰ Mesaje orare: ${onOff(settings.hourlyMessagesEnabled)}\n` +
+        `🎉 Mesaj de miezul nopții: ${onOff(settings.dailyMilestoneEnabled)}\n` +
+        `⏱️ Timp ghicitoare: ${settings.riddleTimeoutMinutes} minute\n` +
+        `❤️ Vieți ghicitoare: ${settings.maxWrongAnswers}\n` +
+        `📝 Mesaje personalizate: ${Object.keys(settings.customMessages || {}).length}`;
+}
+
+function getSettingsMenuText() {
+    return `⚙️ Setări Cupidon\n\nAlege una dintre opțiuni scriind numărul sau numele:\n\n1. test mode\n2. mesaje orare\n3. mesaj de miezul nopții\n4. timp ghicitoare\n5. vieți ghicitoare\n6. mesaj personalizat\n7. șterge mesaj personalizat\n8. reset setări\n9. arată setările\n\nScrie *back* sau *anuleaza* pentru a ieși.`;
+}
+
+function startSettingsFlow(groupId) {
+    SETTINGS_FLOW.set(groupId, { step: 'awaiting-action' });
+}
+
+function clearSettingsFlow(groupId) {
+    SETTINGS_FLOW.delete(groupId);
+}
+
+function getSettingsFlow(groupId) {
+    return SETTINGS_FLOW.get(groupId) || null;
+}
+
+async function sendSettingsMenu(sock) {
+    startSettingsFlow(groupId);
+    await botSend(sock, groupId, {
+        text: `${cardHeader('settings')}\n\n${getSettingsMenuText()}\n\n${getSettingsSummaryText()}`
+    }, 'settings');
+}
+
+async function handleSettingsText(sock, rawText) {
+    const flow = getSettingsFlow(groupId);
+    if (!flow) return false;
+
+    const normalized = normalizeText(rawText || '');
+    if (!normalized) return true;
+
+    if (normalized === 'anuleaza' || normalized === 'cancel' || normalized === 'stop' || normalized === 'exit') {
+        clearSettingsFlow(groupId);
+        await botSend(sock, groupId, { text: '❌ Am ieșit din setări.' }, 'settings');
+        return true;
+    }
+
+    if (flow.step === 'awaiting-action') {
+        if (normalized === 'back') {
+            await botSend(sock, groupId, { text: getSettingsMenuText() + '\n\n' + getSettingsSummaryText() }, 'settings');
+            return true;
+        }
+
+        if (normalized === '1' || normalized === 'test' || normalized === 'test mode') {
+            settings.testMode = !settings.testMode;
+            saveSettings();
+            await botSend(sock, groupId, { text: `🧪 Test Mode este acum ${onOff(settings.testMode)}.` }, 'settings');
+            await sendSettingsMenu(sock);
+            return true;
+        }
+
+        if (normalized === '2' || normalized === 'hourly' || normalized === 'mesaje orare') {
+            settings.hourlyMessagesEnabled = !settings.hourlyMessagesEnabled;
+            saveSettings();
+            await botSend(sock, groupId, { text: `⏰ Mesajele orare sunt acum ${onOff(settings.hourlyMessagesEnabled)}.` }, 'settings');
+            await sendSettingsMenu(sock);
+            return true;
+        }
+
+        if (normalized === '3' || normalized === 'daily' || normalized === 'mesaj de miezul noptii') {
+            settings.dailyMilestoneEnabled = !settings.dailyMilestoneEnabled;
+            saveSettings();
+            await botSend(sock, groupId, { text: `🎉 Mesajul de miezul nopții este acum ${onOff(settings.dailyMilestoneEnabled)}.` }, 'settings');
+            await sendSettingsMenu(sock);
+            return true;
+        }
+
+        if (normalized === '4' || normalized === 'timeout' || normalized === 'timp ghicitoare') {
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-timeout', action: 'timeout' });
+            await botSend(sock, groupId, { text: `⏱️ Trimite un număr pentru timpul ghicitorii în minute.
+Valori recomandate: 2, 5, 10, 15.
+Scrie *back* pentru a reveni.` }, 'settings');
+            return true;
+        }
+
+        if (normalized === '5' || normalized === 'lives' || normalized === 'vieți' || normalized === 'vieți ghicitoare') {
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-lives', action: 'lives' });
+            await botSend(sock, groupId, { text: `❤️ Trimite un număr pentru câte vieți dorești la ghicitori.
+Valori recomandate: 2, 3, 4, 5.
+Scrie *back* pentru a reveni.` }, 'settings');
+            return true;
+        }
+
+        if (normalized === '6' || normalized === 'custom' || normalized === 'mesaj personalizat') {
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-category', action: 'custom' });
+            await botSend(sock, groupId, { text: `📝 Scrie categoria pentru care vrei să setezi un mesaj nou.\nExemple: ${getSettingsCategoryListText()}` }, 'settings');
+            return true;
+        }
+
+        if (normalized === '7' || normalized === 'clear' || normalized === 'sterge mesaj personalizat') {
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-category', action: 'clear' });
+            await botSend(sock, groupId, { text: `🗑️ Scrie categoria pentru care vrei să ștergi mesajul personalizat.` }, 'settings');
+            return true;
+        }
+
+        if (normalized === '8' || normalized === 'reset' || normalized === 'reset setări') {
+            settings = { ...DEFAULT_SETTINGS, customMessages: {} };
+            saveSettings();
+            await botSend(sock, groupId, { text: '🔄 Setările au fost resetate la valorile implicite.' }, 'settings');
+            await sendSettingsMenu(sock);
+            return true;
+        }
+
+        if (normalized === '9' || normalized === 'show' || normalized === 'arată setările') {
+            await botSend(sock, groupId, { text: getSettingsSummaryText() }, 'settings');
+            await sendSettingsMenu(sock);
+            return true;
+        }
+
+        await botSend(sock, groupId, { text: `⚠️ Opțiune necunoscută.\n\n${getSettingsMenuText()}` }, 'settings');
+        return true;
+    }
+
+    if (flow.step === 'awaiting-category') {
+        if (normalized === 'back') {
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-action' });
+            await botSend(sock, groupId, { text: getSettingsMenuText() + '\n\n' + getSettingsSummaryText() }, 'settings');
+            return true;
+        }
+
+        if (normalized === 'anuleaza' || normalized === 'cancel' || normalized === 'stop' || normalized === 'exit') {
+            clearSettingsFlow(groupId);
+            await botSend(sock, groupId, { text: '❌ Am ieșit din setări.' }, 'settings');
+            return true;
+        }
+
+        if (!isValidSettingsCategory(normalized)) {
+            await botSend(sock, groupId, { text: `❌ Categoria *${rawText}* nu este disponibilă.\n\nÎncearcă din nou cu o categorie validă, de exemplu: ${getSettingsCategoryListText()}` }, 'settings');
+            return true;
+        }
+
+        if (flow.action === 'clear') {
+            settings.customMessages = settings.customMessages || {};
+            delete settings.customMessages[normalized];
+            saveSettings();
+            await botSend(sock, groupId, { text: `🗑️ Am șters personalizarea pentru categoria *${normalized}*.` }, 'settings');
+            await sendSettingsMenu(sock);
+            return true;
+        }
+
+        SETTINGS_FLOW.set(groupId, { step: 'awaiting-text', action: 'custom', category: normalized });
+        await botSend(sock, groupId, {
+            text: `✅ Categoria *${normalized}* a fost selectată.\n\nTrimite acum textul nou pe care vrei să îl folosească botul.\nDacă vrei să anulezi, scrie *anuleaza*.`
+        }, 'settings');
+        return true;
+    }
+
+    if (flow.step === 'awaiting-text') {
+        if (normalized === 'back') {
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-action' });
+            await botSend(sock, groupId, { text: getSettingsMenuText() + '\n\n' + getSettingsSummaryText() }, 'settings');
+            return true;
+        }
+
+        if (normalized === 'anuleaza' || normalized === 'cancel' || normalized === 'stop' || normalized === 'exit') {
+            clearSettingsFlow(groupId);
+            await botSend(sock, groupId, { text: '❌ Am ieșit din setări.' }, 'settings');
+            return true;
+        }
+
+        const category = flow.category;
+        settings.customMessages = settings.customMessages || {};
+        settings.customMessages[category] = rawText.trim();
+        saveSettings();
+        await botSend(sock, groupId, { text: `✅ Am salvat mesajul pentru categoria *${category}*.` }, 'settings');
+        await sendSettingsMenu(sock);
+        return true;
+    }
+
+    if (flow.step === 'awaiting-timeout') {
+        if (normalized === 'back') {
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-action' });
+            await botSend(sock, groupId, { text: getSettingsMenuText() + '\n\n' + getSettingsSummaryText() }, 'settings');
+            return true;
+        }
+
+        const parsed = Number(rawText);
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+            await botSend(sock, groupId, { text: '⚠️ Te rog trimite un număr întreg pozitiv pentru timpul ghicitorii.' }, 'settings');
+            return true;
+        }
+
+        settings.riddleTimeoutMinutes = parsed;
+        saveSettings();
+        await botSend(sock, groupId, { text: `⏱️ Timpul pentru ghicitori este acum ${settings.riddleTimeoutMinutes} minute.` }, 'settings');
+        await sendSettingsMenu(sock);
+        return true;
+    }
+
+    if (flow.step === 'awaiting-lives') {
+        if (normalized === 'back') {
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-action' });
+            await botSend(sock, groupId, { text: getSettingsMenuText() + '\n\n' + getSettingsSummaryText() }, 'settings');
+            return true;
+        }
+
+        const parsed = Number(rawText);
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+            await botSend(sock, groupId, { text: '⚠️ Te rog trimite un număr întreg pozitiv pentru numărul de vieți.' }, 'settings');
+            return true;
+        }
+
+        settings.maxWrongAnswers = parsed;
+        saveSettings();
+        await botSend(sock, groupId, { text: `❤️ Numărul de vieți la ghicitori este acum ${settings.maxWrongAnswers}.` }, 'settings');
+        await sendSettingsMenu(sock);
+        return true;
+    }
+
+    return false;
+}
+
+function startMoodCheck(sock) {
+    const moods = [
+        '🌈 Aura ta e în modul *romantic ultra* — totul pare mai frumos și mai magical.',
+        '✨ Aura ta e în modul *sparkle* — zâmbești, strălucești și atragi atenția.',
+        '💖 Aura ta e în modul *love bomb* — toată lumea simte că ești într-o zi specială.',
+        '🌙 Aura ta e în modul *mystic* — ești plină de calm, mister și farmec.',
+        '🔥 Aura ta e în modul *flare* — ai energie, șarm și un pic de drama bună.'
+    ];
+    const mood = pickNoRepeat('modern_mood', moods);
+    return botSend(sock, groupId, { text: `${mood}\n\nScrie *cupidon vibe* pentru altă citire!` }, 'mood');
+}
+
+function startAuraReading(sock) {
+    const auraMessages = [
+        '💫 Aura ta: 97% lumină, 3% mister.',
+        '🌟 Aura ta: 89% căldură, 11% magie.',
+        '🪄 Aura ta: 93% flirt, 7% șoc pozitiv.',
+        '🌈 Aura ta: 85% iubire, 15% energie cosmică.',
+        '⚡ Aura ta: 91% șarm, 9% drama elegantă.'
+    ];
+    const aura = pickNoRepeat('modern_aura', auraMessages);
+    return botSend(sock, groupId, { text: `${aura}\n\nScrie *cupidon aura* pentru un nou readout!` }, 'aura');
+}
+
+function startDailyQuote(sock) {
+    const quotes = [
+        '🌙 „Dragostea nu e doar un sentiment, ci și un mod de a te simți acasă.”',
+        '✨ „Când ești cu cineva care te înțelege, chiar și tăcerea devine frumoasă.”',
+        '💖 „Un zâmbet sincer valorează mai mult decât o mie de cuvinte.”',
+        '🌈 „Cele mai frumoase povești încep cu un simplu „hai să încercăm”.’',
+        '🔥 „Energia bună schimbă totul, chiar și o zi obișnuită.”'
+    ];
+    const quote = pickNoRepeat('modern_quote', quotes);
+    return botSend(sock, groupId, { text: `${quote}\n\nScrie *cupidon quote* pentru alt citat!` }, 'quote');
+}
+
+function startTarotSpread(sock) {
+    const cards = [
+        '🕯️ Cardul iubirii: „Totul se aliniază.”',
+        '🌙 Cardul misterului: „Fii atent la semne.”',
+        '☀️ Cardul fericirii: „O zi minunată te așteaptă.”',
+        '🌹 Cardul romantismului: „Dragostea e aproape.”',
+        '⭐ Cardul norocului: „Ai un impuls special.”'
+    ];
+    const picked = [pickNoRepeat('tarot_1', cards), pickNoRepeat('tarot_2', cards), pickNoRepeat('tarot_3', cards)];
+    return botSend(sock, groupId, { text: `🔮 *Tarot modern*\n\n${picked[0]}\n${picked[1]}\n${picked[2]}\n\nScrie *cupidon tarot* pentru o altă răsucire!` }, 'tarot');
+}
+
+function startRateCommand(sock, rawText) {
+    const target = rawText.replace(/cupidon/i, '').replace(/rate/i, '').trim() || 'această relație';
+    const score = 70 + Math.floor(Math.random() * 30);
+    const emoji = score >= 90 ? '💖' : score >= 80 ? '✨' : score >= 70 ? '🌙' : '😄';
+    return botSend(sock, groupId, { text: `${emoji} Rating-ul meu pentru *${target}* este *${score}/100*.` }, 'rate');
+}
+
+const HELP_TEXT = `✦━━━━━━━━━━━━━━━━━━✦
+   🏹  𝗖𝗨𝗣𝗜𝗗𝗢𝗡
+   Love • Fun • Games • Setări
+✦━━━━━━━━━━━━━━━━━━✦
 
 Scrie *cupidon <comandă>* pentru orice de mai jos ⬇️
+Scrie *cupidon setari* ca să reglezi bot-ul după cum vrei ⚙️
 
 ${RULE}
 ❤️ *LOVE*
@@ -482,6 +875,12 @@ ${RULE}
 😘 foreheadkiss  😊 cheekkiss    💍 handkiss
 💃 dance         💆 massage      🤝 holdhands
 🎁 surprise
+
+${RULE}
+✨ *MODERN & COOL*
+${RULE}
+🌈 vibe / mood    ✨ aura        🔮 tarot
+📜 quote         💯 rate        🪄 choose
 
 ${RULE}
 🎲 *JOC DE CUPLU*
@@ -502,7 +901,7 @@ ${RULE}
 ${RULE}
 🍽️ date    🏆 reward   😈 punish
 🎀 gift    📝 bucketlist   🌐 website
-💌 dedicatie   📜 poezie
+💌 dedicatie   📜 poezie  🎵 spotify
 
 ${RULE}
 🎮 *GAMES*
@@ -512,7 +911,12 @@ ${RULE}
 🔮 8ball       🎰 slot        🧩 scramble
 🎯 hangman     🧩 anagram     🧠 emojiquiz
 🧮 math        🎨 color       🧠 trivia
-🐾 animal      🎲 choose
+🐾 animal      🎲 choose      🔢 100
+
+${RULE}
+⚙️ *SETĂRI*
+${RULE}
+🔧 setari — deschide meniul de setări interactiv
 
 ${RULE}
 📖 *INFO*
@@ -525,15 +929,16 @@ ${RULE}
 💖 cupidon romantic   💋 cupidon kiss
 🔥 cupidon dare       ❤️ cupidon lovemeter
 🍽️ cupidon date       🎮 cupidon tictactoe
+⚙️ cupidon setari
 
-╭──────────────╮
+✦──────────────────✦
 ❤️ Dragostea nu înseamnă să găsești
 persoana perfectă... ci să vezi
 perfecțiunea într-o persoană imperfectă.
 
 🏹 *Cupidon* — mereu aici pentru
 Denis ❤️ Stefania
-╰──────────────╯`;
+✦──────────────────✦`;
 
 let currentRiddle = null;
 let riddleTimeout = null;
@@ -582,7 +987,10 @@ function isBotMessageText(text) {
 // cards off the top of the deck one at a time; once the deck is
 // empty (every message in that pool has been shown), we reshuffle
 // a brand new deck. This guarantees no message repeats until the
-// entire pool has been exhausted.
+// entire pool has been exhausted. Every random pick in this file —
+// riddles, quotes, games, hangman/scramble/anagram words, dice,
+// coin flips, rps, milestone messages — goes through this so
+// nothing shows up twice in a row.
 // ============================================================
 
 const messageDecks = new Map(); // type -> array of remaining shuffled indices
@@ -610,6 +1018,14 @@ function drawIndex(key, length) {
     return deck.pop();
 }
 
+// Convenience wrapper: pick a random-but-no-immediate-repeat entry
+// straight out of an array, keyed by name. Used everywhere a game
+// or message list previously called Math.random() directly.
+function pickNoRepeat(key, arr) {
+    const idx = drawIndex(key, arr.length);
+    return arr[idx];
+}
+
 function pickFrom(type) {
     const key = type || '__default__';
 
@@ -625,13 +1041,17 @@ function pickFrom(type) {
 }
 
 function buildSimpleMessage(type) {
+    if (type && type !== 'riddle' && settings.customMessages && typeof settings.customMessages[type] === 'string' && settings.customMessages[type].trim()) {
+        return settings.customMessages[type].trim();
+    }
+
     const randomMsg = pickFrom(type);
     let text = '';
 
     if (randomMsg.type === 'riddle') {
         currentRiddle = randomMsg;
         wrongAnswerCount = 0;
-        text += randomMsg.text + `\n\n⏱️ 5 minute · ${livesBar(MAX_WRONG_ANSWERS, MAX_WRONG_ANSWERS)}`;
+        text += randomMsg.text + `\n\n⏱️ ${settings.riddleTimeoutMinutes} minute · ${livesBar(maxWrongAnswers(), maxWrongAnswers())}`;
     } else {
         text += randomMsg.text;
     }
@@ -669,9 +1089,18 @@ function createEmptyTicTacToeBoard() {
     return Array(9).fill(null);
 }
 
+function cardHeader(type) {
+    const s = styleMap[type] || styleMap.general;
+    const edge = '✦' + RULE + '✦';
+    const lines = [edge];
+    if (s.category) lines.push(`   ✧ ${s.category} ✧`);
+    lines.push(`   ${s.icon}  ${toBoldUnicode(s.title)}`);
+    lines.push(edge);
+    return lines.join('\n');
+}
+
 function ttoeCardHeader() {
-    const s = styleMap.tictactoe;
-    return `✦ ${s.category} ✦\n${s.icon} *${s.title}*\n${RULE}`;
+    return cardHeader('tictactoe');
 }
 
 function getTicTacToeCaption(game) {
@@ -846,15 +1275,6 @@ async function handleTicTacToeButton(sock, buttonId) {
     await botSend(sock, groupId, { text: `❗ Buton TicTacToe necunoscut.` }, 'tictactoe');
 }
 
-function cardHeader(type) {
-    const s = styleMap[type] || styleMap.general;
-    const lines = [];
-    if (s.category) lines.push(`✦ ${s.category} ✦`);
-    lines.push(`${s.icon} *${s.title}*`);
-    lines.push(RULE);
-    return lines.join('\n');
-}
-
 // ============================================================
 // ROCK · PAPER · SCISSORS  (Piatră, Foarfecă, Hârtie)
 // ============================================================
@@ -867,7 +1287,10 @@ const RPS_CHOICES = {
 
 function pickRpsChoice() {
     const keys = Object.keys(RPS_CHOICES);
-    return keys[Math.floor(Math.random() * keys.length)];
+    // FIX: used to be a plain Math.random() pick, so the bot could throw
+    // the same move several times in a row. Routed through the no-repeat
+    // deck like every other pick in the file.
+    return pickNoRepeat('rps_bot_choice', keys);
 }
 
 // FIX (carried over): this used to take a `chatId` second argument that
@@ -927,7 +1350,17 @@ const quizQuestions = [
     { question: 'Ce simbol este asociat cu Cupidon?', options: ['Sabia', 'Arcul și săgeata', 'Scutul', 'Coroana'], correctIndex: 1 },
     { question: 'Ce floare este cel mai des asociată cu dragostea?', options: ['Trandafirul', 'Lalea', 'Ghiocelul', 'Margareta'], correctIndex: 0 },
     { question: 'Ce reprezintă o promisiune într-o relație?', options: ['Un joc', 'Un angajament sincer', 'O glumă', 'O obligație rece'], correctIndex: 1 },
-    { question: 'Ce face o relație să dureze în timp?', options: ['Norocul', 'Comunicarea și respectul', 'Banii', 'Distanța'], correctIndex: 1 }
+    { question: 'Ce face o relație să dureze în timp?', options: ['Norocul', 'Comunicarea și respectul', 'Banii', 'Distanța'], correctIndex: 1 },
+    { question: 'Ce înseamnă compromisul într-un cuplu?', options: ['A pierde mereu', 'A găsi o cale comună', 'A ceda tot timpul', 'A evita conflictul'], correctIndex: 1 },
+    { question: 'Ce ar trebui să faci după o ceartă?', options: ['Să ignori', 'Să vorbești deschis', 'Să pleci definitiv', 'Să te superi tăcut'], correctIndex: 1 },
+    { question: 'Care este cel mai bun cadou pentru o aniversare?', options: ['Cel mai scump', 'Cel cu suflet', 'Cel din reclamă', 'Nu contează'], correctIndex: 1 },
+    { question: 'Ce simbolizează inelele la logodnă?', options: ['Modă', 'Angajament', 'Statut social', 'Obicei'], correctIndex: 1 },
+    { question: 'Cât de important e umorul într-o relație?', options: ['Deloc', 'Puțin', 'Foarte important', 'Nu contează'], correctIndex: 2 },
+    { question: 'Ce arată de obicei o îmbrățișare lungă?', options: ['Nerăbdare', 'Confort și siguranță', 'Plictiseală', 'Formalitate'], correctIndex: 1 },
+    { question: 'Ce fel de amintiri contează cel mai mult?', options: ['Cele scumpe', 'Cele sincere', 'Cele publice', 'Cele planificate perfect'], correctIndex: 1 },
+    { question: 'Ce e prima regulă a unei relații sănătoase?', options: ['Control', 'Respect reciproc', 'Gelozie', 'Competiție'], correctIndex: 1 },
+    { question: 'Ce simbolizează culoarea albă la nuntă?', options: ['Puritate', 'Tristețe', 'Noroc', 'Vară'], correctIndex: 0 },
+    { question: 'Ce e mai valoros: timpul sau banii?', options: ['Banii', 'Timpul petrecut împreună', 'Nu contează', 'Depinde de zi'], correctIndex: 1 }
 ];
 
 async function startQuizGame(sock) {
@@ -1040,7 +1473,10 @@ function scrambleWord(word) {
 }
 
 async function startScrambleGame(sock) {
-    const word = SCRAMBLE_WORDS[Math.floor(Math.random() * SCRAMBLE_WORDS.length)];
+    // FIX: was a raw Math.random() pick straight into SCRAMBLE_WORDS, so
+    // the same word could come up again right away. Now uses the shared
+    // no-repeat deck like every other word game.
+    const word = pickNoRepeat('scramble', SCRAMBLE_WORDS);
     const scrambled = scrambleWord(word);
     activeScrambleGames.set(groupId, {
         word,
@@ -1082,14 +1518,18 @@ async function handleScrambleGuess(sock, game, guess) {
 const DICE_FACES = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅']; // index 1-6
 
 async function startDiceGame(sock) {
-    const value = Math.floor(Math.random() * 6) + 1;
+    // FIX: raw Math.random() roll → could show the same face twice in a
+    // row. Now drawn from a no-repeat deck of the 6 faces.
+    const value = pickNoRepeat('dice', [1, 2, 3, 4, 5, 6]);
     await botSend(sock, groupId, {
         text: `${DICE_FACES[value]} Ai aruncat un *${value}*!\n\nScrie *cupidon dice* pentru altă aruncare!`
     }, 'diceGame');
 }
 
 async function startCoinFlipGame(sock) {
-    const result = Math.random() > 0.5 ? 'Cap' : 'Pajură';
+    // FIX: raw Math.random() > 0.5 → could show the same face twice in a
+    // row. Now drawn from a no-repeat deck of the 2 faces.
+    const result = pickNoRepeat('coin', ['Cap', 'Pajură']);
     await botSend(sock, groupId, {
         text: `🪙 Moneda se învârte...\n\nA ieșit: *${result}*!\n\nScrie *cupidon coin* pentru altă încercare!`
     }, 'coinGame');
@@ -1102,15 +1542,25 @@ async function startEightBallGame(sock) {
         '✨ Da, dar răbdare.',
         '🌈 Se pare că da.',
         '☁️ Mă îndoiesc.',
-        '🌟 Concentrează-te și întreabă din nou.'
+        '🌟 Concentrează-te și întreabă din nou.',
+        '🔮 Fără îndoială, da!',
+        '🍀 Semnele arată bine.',
+        '🌊 Răspunsul e neclar acum, mai încearcă.',
+        '⚡ Categoric, da!',
+        '🌑 Nu conta pe asta.',
+        '🕯️ Întreabă din nou mai târziu.'
     ];
-    const answer = answers[drawIndex('eightball', answers.length)];
+    const answer = pickNoRepeat('eightball', answers);
     await botSend(sock, groupId, { text: answer }, 'eightball');
 }
 
 async function startSlotMachineGame(sock) {
     const icons = ['🍒', '🍋', '⭐', '🔔', '🍀', '💎'];
-    const reels = Array.from({ length: 3 }, () => icons[Math.floor(Math.random() * icons.length)]);
+    // FIX: each reel used a plain Math.random() index, so all three reels
+    // (and repeat spins) could clump on the same icons far more often
+    // than a real slot machine would. Each reel now draws from its own
+    // no-repeat deck.
+    const reels = ['slot_reel1', 'slot_reel2', 'slot_reel3'].map(key => pickNoRepeat(key, icons));
     const [a, b, c] = reels;
     let result = '😅 Nu de data asta.';
 
@@ -1127,14 +1577,16 @@ async function startSlotMachineGame(sock) {
 
 const activeHangmanGames = new Map();
 const HANGMAN_MAX_WRONG = 6;
-const HANGMAN_WORDS = ['dragoste', 'zambet', 'luna', 'cafea', 'plimbare', 'vis', 'stea', 'floare', 'caldura', 'poveste', 'iubire', 'bucurie', 'serbare', 'mister', 'magie'];
+const HANGMAN_WORDS = ['dragoste', 'zambet', 'luna', 'cafea', 'plimbare', 'vis', 'stea', 'floare', 'caldura', 'poveste', 'iubire', 'bucurie', 'serbare', 'mister', 'magie', 'suflet', 'zapada', 'curcubeu', 'aventura', 'liniste', 'incredere', 'prietenie', 'fericire', 'sperante', 'amintire', 'castel', 'oglinda', 'comoara', 'fluture', 'ocean'];
 
 function getHangmanDisplay(word, guessedLetters) {
     return word.split('').map(ch => (guessedLetters.has(ch) ? ch : '_')).join(' ');
 }
 
 async function startHangmanGame(sock) {
-    const word = HANGMAN_WORDS[Math.floor(Math.random() * HANGMAN_WORDS.length)];
+    // FIX: raw Math.random() pick → same word could reappear immediately.
+    // Routed through the shared no-repeat deck.
+    const word = pickNoRepeat('hangman', HANGMAN_WORDS);
     activeHangmanGames.set(groupId, {
         word,
         guessedLetters: new Set(),
@@ -1196,10 +1648,11 @@ async function handleHangmanGuess(sock, game, guessText) {
 }
 
 const activeAnagramGames = new Map();
-const ANAGRAM_WORDS = ['pahar', 'luna', 'munca', 'soare', 'cerc', 'munte', 'carte', 'caini', 'frunze', 'suflet'];
+const ANAGRAM_WORDS = ['pahar', 'luna', 'munca', 'soare', 'cerc', 'munte', 'carte', 'caini', 'frunze', 'suflet', 'gradina', 'stea', 'fluture', 'castel', 'poveste', 'zambet', 'liniste', 'noroc', 'vis', 'iarna', 'vara', 'toamna', 'primavara', 'oglinda', 'comoara'];
 
 async function startAnagramGame(sock) {
-    const word = ANAGRAM_WORDS[Math.floor(Math.random() * ANAGRAM_WORDS.length)];
+    // FIX: raw Math.random() pick → same word could reappear immediately.
+    const word = pickNoRepeat('anagram', ANAGRAM_WORDS);
     activeAnagramGames.set(groupId, { word });
     await botSend(sock, groupId, {
         text: `Găsește cuvântul din: *${scrambleWord(word)}*`
@@ -1223,11 +1676,26 @@ const EMOJI_QUIZ_ITEMS = [
     { emoji: '☀️', answer: 'soare' },
     { emoji: '🍕', answer: 'pizza' },
     { emoji: '🎵', answer: 'muzica' },
-    { emoji: '🧁', answer: 'prajitura' }
+    { emoji: '🧁', answer: 'prajitura' },
+    { emoji: '🌧️', answer: 'ploaie' },
+    { emoji: '🔥', answer: 'foc' },
+    { emoji: '❄️', answer: 'zapada' },
+    { emoji: '🌈', answer: 'curcubeu' },
+    { emoji: '⭐', answer: 'stea' },
+    { emoji: '🏖️', answer: 'plaja' },
+    { emoji: '📚', answer: 'carte' },
+    { emoji: '☕', answer: 'cafea' },
+    { emoji: '🎂', answer: 'tort' },
+    { emoji: '🎈', answer: 'balon' },
+    { emoji: '🚗', answer: 'masina' },
+    { emoji: '✈️', answer: 'avion' },
+    { emoji: '🏠', answer: 'casa' },
+    { emoji: '🎬', answer: 'film' }
 ];
 
 async function startEmojiQuizGame(sock) {
-    const item = EMOJI_QUIZ_ITEMS[Math.floor(Math.random() * EMOJI_QUIZ_ITEMS.length)];
+    // FIX: raw Math.random() pick → same emoji could reappear immediately.
+    const item = pickNoRepeat('emojiquiz', EMOJI_QUIZ_ITEMS);
     activeEmojiQuizGames.set(groupId, { answer: item.answer });
     await botSend(sock, groupId, {
         text: `Ce cuvânt reprezintă ${item.emoji}?\nScrie răspunsul!`
@@ -1244,6 +1712,7 @@ async function handleEmojiQuizGuess(sock, game, guessText) {
 }
 
 const activeMathGames = new Map();
+const active100Game = new Map();
 
 async function startMathQuizGame(sock) {
     const a = Math.floor(Math.random() * 10) + 1;
@@ -1279,11 +1748,16 @@ const COLOR_ITEMS = [
     { emoji: '🟢', answer: 'verde' },
     { emoji: '🟡', answer: 'galben' },
     { emoji: '🟣', answer: 'mov' },
-    { emoji: '⚪', answer: 'alb' }
+    { emoji: '⚪', answer: 'alb' },
+    { emoji: '⚫', answer: 'negru' },
+    { emoji: '🟠', answer: 'portocaliu' },
+    { emoji: '🟤', answer: 'maro' },
+    { emoji: '🩷', answer: 'roz' }
 ];
 
 async function startColorGame(sock) {
-    const item = COLOR_ITEMS[Math.floor(Math.random() * COLOR_ITEMS.length)];
+    // FIX: raw Math.random() pick → same color could reappear immediately.
+    const item = pickNoRepeat('colorguess', COLOR_ITEMS);
     activeColorGames.set(groupId, { answer: item.answer });
     await botSend(sock, groupId, {
         text: `Care culoare este ${item.emoji}?\nScrie răspunsul!`
@@ -1305,11 +1779,27 @@ const TRIVIA_QUESTIONS = [
     { question: 'Ce planetă este cunoscută ca planeta roșie?', answer: 'marte' },
     { question: 'Care este cel mai mare ocean de pe Pământ?', answer: 'pacific' },
     { question: 'Cine a scris Romeo și Julieta?', answer: 'shakespeare' },
-    { question: 'Ce anotimp vine după iarnă?', answer: 'primavara' }
+    { question: 'Ce anotimp vine după iarnă?', answer: 'primavara' },
+    { question: 'Câte zile are un an obișnuit?', answer: '365' },
+    { question: 'Ce culoare rezultă din amestecul albastru cu galben?', answer: 'verde' },
+    { question: 'Cel mai înalt munte din lume?', answer: 'everest' },
+    { question: 'Câte continente sunt pe Pământ?', answer: '7' },
+    { question: 'Ce animal este simbolul înțelepciunii?', answer: 'bufnita' },
+    { question: 'Ce limbă se vorbește în Franța?', answer: 'franceza' },
+    { question: 'Câte litere are alfabetul român?', answer: '31' },
+    { question: 'Ce organ pompează sângele în corp?', answer: 'inima' },
+    { question: 'Cea mai mare țară din lume ca suprafață?', answer: 'rusia' },
+    { question: 'Ce gaz respirăm ca să trăim?', answer: 'oxigen' },
+    { question: 'Câte zile are luna februarie într-un an bisect?', answer: '29' },
+    { question: 'Ce simbol chimic are apa?', answer: 'h2o' },
+    { question: 'Ce insectă produce miere?', answer: 'albina' },
+    { question: 'Care este cea mai mică planetă din sistemul solar?', answer: 'mercur' },
+    { question: 'Ce sărbătoare se ține pe 1 decembrie în România?', answer: 'ziua nationala' }
 ];
 
 async function startTriviaGame(sock) {
-    const item = TRIVIA_QUESTIONS[Math.floor(Math.random() * TRIVIA_QUESTIONS.length)];
+    // FIX: raw Math.random() pick → same question could reappear immediately.
+    const item = pickNoRepeat('trivia', TRIVIA_QUESTIONS);
     activeTriviaGames.set(groupId, { answer: item.answer });
     await botSend(sock, groupId, {
         text: `${item.question}\nScrie răspunsul!`
@@ -1361,20 +1851,16 @@ const ANIMAL_QUIZ_ITEMS = [
     { emoji: '🐝', answer: 'albinuta' },
     { emoji: '🐜', answer: 'furnica' },
     { emoji: '🦗', answer: 'greier' },
-    { emoji: '🦋', answer: 'fluture' },
     { emoji: '🐞', answer: 'buburuza' },
     { emoji: '🦩', answer: 'flamingo' },
-    { emoji: '🐦‍🔥', answer: 'pasarea phoenix' },
     { emoji: '🦅', answer: 'vultur' },
     { emoji: '🦉', answer: 'bufnita' },
-    { emoji: '🐦', answer: 'canar' },
     { emoji: '🐿️', answer: 'veverita' },
     { emoji: '🦔', answer: 'arici' },
     { emoji: '🐁', answer: 'soarece' },
     { emoji: '🐀', answer: 'sobolan' },
     { emoji: '🐪', answer: 'camila' },
     { emoji: '🦙', answer: 'lama' },
-    { emoji: '🦒', answer: 'girafa' },
     { emoji: '🐫', answer: 'camila cu doua cocoase' },
     { emoji: '🦏', answer: 'rinocer' },
     { emoji: '🐃', answer: 'bivol' },
@@ -1382,7 +1868,8 @@ const ANIMAL_QUIZ_ITEMS = [
 ];
 
 async function startAnimalGame(sock) {
-    const item = ANIMAL_QUIZ_ITEMS[Math.floor(Math.random() * ANIMAL_QUIZ_ITEMS.length)];
+    // FIX: raw Math.random() pick → same animal could reappear immediately.
+    const item = pickNoRepeat('animalguess', ANIMAL_QUIZ_ITEMS);
     activeAnimalGames.set(groupId, { answer: item.answer });
     await botSend(sock, groupId, {
         text: `Ce animal este ${item.emoji}?\nScrie răspunsul!`
@@ -1415,14 +1902,15 @@ async function handleInteractiveButton(sock, buttonId) {
         await handleQuizAnswer(sock, buttonId);
         return;
     }
+    if (buttonId.startsWith('settings_')) {
+        await handleSettingsButton(sock, buttonId);
+        return;
+    }
     console.log('⚠️ Buton necunoscut, ignorat:', buttonId);
 }
 
 function buildRelationshipMessage(type) {
-    const pick = (arr, key) => {
-        const idx = drawIndex(key, arr.length);
-        return arr[idx];
-    };
+    const pick = (arr, key) => pickNoRepeat(key, arr);
 
     const relationshipPool = [
 
@@ -1614,8 +2102,7 @@ const imaginePool = [
 ];
 
 function buildImagineMessage() {
-    const idx = drawIndex('imagine', imaginePool.length);
-    return imaginePool[idx];
+    return pickNoRepeat('imagine', imaginePool);
 }
 
 function getRandomImagePayload(text, folderPath = null) {
@@ -1639,8 +2126,7 @@ function getRandomImagePayload(text, folderPath = null) {
     }
 
     // No-repeat draw for images too, keyed by folder path
-    const idx = drawIndex(`img:${folderPath || 'default'}`, files.length);
-    const randomFile = files[idx];
+    const randomFile = pickNoRepeat(`img:${folderPath || 'default'}`, files);
     const ext = path.extname(randomFile).toLowerCase();
     const mimetype = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.gif' ? 'image/gif' : 'image/jpeg';
 
@@ -1665,7 +2151,9 @@ const weeklyMessages = [
     "🥰 Încă o săptămână de zâmbete, îmbrățișări și dragoste. Nu-mi doresc nimic altceva.",
     "🌟 Ai trecut cu mine încă o săptămână. Ești cea mai frumoasă parte din viața mea.",
     "💕 O săptămână în plus în care dragostea noastră a crescut și mai mult. Te ador.",
-    "🌹 Mulțumesc pentru încă o săptămână minunată alături de tine, iubirea mea eternă."
+    "🌹 Mulțumesc pentru încă o săptămână minunată alături de tine, iubirea mea eternă.",
+    "🍀 Încă șapte zile în care ai fost norocul meu cel mai mare.",
+    "🌷 O săptămână care a trecut prea repede pentru că am fost fericiți."
 ];
 
 const monthlyMessages = [
@@ -1680,7 +2168,9 @@ const monthlyMessages = [
     "🥰 Mulțumesc pentru încă o lună minunată. Ești cea mai frumoasă parte din mine.",
     "🌟 O lună în plus în care am avut norocul să te strâng în brațe. Te iubesc.",
     "💕 Am mai trecut o lună și dragostea mea pentru tine continuă să crească.",
-    "🌹 Încă o lună alături de tine... și aș vrea să fie o viață întreagă."
+    "🌹 Încă o lună alături de tine... și aș vrea să fie o viață întreagă.",
+    "🍀 Încă treizeci de zile în care ai fost cel mai bun lucru din viața mea.",
+    "🌷 O lună întreagă de zâmbete și amintiri care merită păstrate pentru totdeauna."
 ];
 
 const yearlyMessages = [
@@ -1695,7 +2185,9 @@ const yearlyMessages = [
     "🥰 Un an în plus în care dragostea noastră a devenit legendă.",
     "🌟 Ai trecut cu mine încă un an. Fiecare zi cu tine e un miracol.",
     "💕 Un an mai târziu și te iubesc la fel de intens ca la început, poate chiar mai mult.",
-    "🌹 Am mai bifat un an din eternitatea noastră. Te voi iubi pentru totdeauna."
+    "🌹 Am mai bifat un an din eternitatea noastră. Te voi iubi pentru totdeauna.",
+    "🍀 Un an întreg care a trecut ca o clipă frumoasă alături de tine.",
+    "🌷 Încă un an în care alegerea mea de fiecare zi ai rămas tu."
 ];
 
 // ====================== COMENZI ======================
@@ -1713,9 +2205,18 @@ async function sendMilestoneMessage(sock, type) {
     } else if (type === 'an') {
         messages = yearlyMessages;
         title = '❤️ Un an împreună';
+    } else {
+        // FIX: unrecognized type used to leave `messages`/`title` undefined
+        // and crash on `messages.length` below. Falls back to the weekly
+        // pool instead of throwing.
+        messages = weeklyMessages;
+        title = '💖 Repere';
+        type = 'sapt';
     }
 
-    const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+    // FIX: raw Math.random() pick → same milestone message could reappear
+    // immediately. Routed through the shared no-repeat deck.
+    const randomMsg = pickNoRepeat(`milestone_${type}`, messages);
 
     await botSend(sock, groupId, {
         text: `*${title}*\n\n${randomMsg}\n\nTe iubesc mult, Stefania ❤️`
@@ -1770,7 +2271,7 @@ function armRiddleTimeout(sock) {
             currentRiddle = null;
             wrongAnswerCount = 0;
         }
-    }, RIDDLE_TIMEOUT_MS);
+    }, riddleTimeoutMs());
 }
 
 async function sendCommandReply(sock, type) {
@@ -1779,8 +2280,73 @@ async function sendCommandReply(sock, type) {
     if (currentRiddle) armRiddleTimeout(sock);
 }
 
+function clearPidFile() {
+    try {
+        if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
+    } catch (error) {
+        // ignore cleanup failures
+    }
+}
+
+function writePidFile() {
+    try {
+        fs.writeFileSync(pidFile, String(process.pid));
+    } catch (error) {
+        console.log('⚠️ Nu s-a putut scrie fișierul PID:', error.message);
+    }
+}
+
+function stopPreviousBotInstance() {
+    if (!fs.existsSync(pidFile)) return;
+    try {
+        const oldPid = Number(fs.readFileSync(pidFile, 'utf8').trim());
+        if (Number.isInteger(oldPid) && oldPid > 0 && oldPid !== process.pid) {
+            try {
+                process.kill(oldPid);
+            } catch (error) {
+                if (error.code !== 'ESRCH') {
+                    console.log('⚠️ Nu s-a putut opri instanța anterioară:', error.message);
+                }
+            }
+        }
+    } catch (error) {
+        // ignore if the pid file is stale or unreadable
+    }
+    clearPidFile();
+}
+
+function restartWithFreshAuth(authDir) {
+    try {
+        fs.mkdirSync(authDir, { recursive: true });
+        for (const entry of fs.readdirSync(authDir)) {
+            fs.rmSync(path.join(authDir, entry), { recursive: true, force: true });
+        }
+    } catch (error) {
+        console.log('⚠️ Nu s-a putut reseta folderul de auth pentru restart:', error.message);
+    }
+
+    stopPreviousBotInstance();
+
+    console.log('🔄 Se resetează sesiunea WhatsApp și se pornește o nouă instanță...');
+    const child = spawn(process.execPath, [path.join(__dirname, 'bot.js')], {
+        cwd: __dirname,
+        detached: true,
+        stdio: 'inherit',
+        env: { ...process.env, AUTH_DIR: authDir }
+    });
+    child.unref();
+
+    child.on('error', (error) => {
+        console.log('⚠️ Nu s-a putut porni noua instanță:', error.message);
+    });
+
+    process.exit(0);
+}
+
 async function startBot() {
     const AUTH_DIR = process.env.AUTH_DIR || 'auth';
+    stopPreviousBotInstance();
+    writePidFile();
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
     // Always fetch the latest WhatsApp Web protocol version.
@@ -1817,6 +2383,7 @@ async function startBot() {
 
     process.once('SIGINT', () => handleShutdown('SIGINT'));
     process.once('SIGTERM', () => handleShutdown('SIGTERM'));
+    process.once('exit', () => clearPidFile());
 
     let botStartupTimestamp = Math.floor(Date.now() / 1000);
 
@@ -1834,23 +2401,32 @@ async function startBot() {
             console.log('✅ Cupidon este pornit și conectat!');
             if (!startupAnnounced) {
                 startupAnnounced = true;
-                botSend(sock, groupId, { text: `🤖✨ Cupidon este online și gata de treabă!\nScrie *cupidon help* pentru meniu.` })
+                botSend(sock, groupId, { text: `🤖✨ Cupidon este online și gata de treabă!\nScrie *cupidon help* pentru meniu sau *cupidon setari* pentru configurări.` })
                     .catch(() => {});
             }
-            if (TEST_MODE) {
-                console.log('🧪 TEST_MODE este ACTIV — orice mesaj din grup declanșează un mesaj random.');
+            if (settings.testMode) {
+                console.log('🧪 Test Mode este ACTIV — orice mesaj din grup declanșează un mesaj random.');
             }
         }
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
-            console.log('❌ Conexiune închisă. Cod:', statusCode, '-', lastDisconnect?.error?.message);
+            const message = lastDisconnect?.error?.message || lastDisconnect?.error?.output?.payload?.message || 'Conexiune închisă';
+            console.log('❌ Conexiune închisă. Cod:', statusCode, '-', message);
 
-            // FIX (carried over): was `statusCode === 401 || (statusCode === 401 && ...)`,
-            // a self-redundant condition. Simplified to the actual check.
             const loggedOut = statusCode === 401;
+            const conflict = statusCode === 440 || /conflict|replaced/i.test(message);
 
             if (loggedOut) {
-                console.log('🚪 Autentificarea a eșuat. Șterge folderul "auth" și repornește pentru a te reasocia.');
+                console.log('🚪 Autentificarea a eșuat. Se resetează sesiunea și se încearcă reconectarea.');
+                restartWithFreshAuth(AUTH_DIR);
+            } else if (conflict) {
+                console.log('⚠️ O altă sesiune WhatsApp este activă. Se oprește botul pentru a evita bucla de reconectare. Repornește-l manual după ce sesiunea veche a fost închisă.');
+                try {
+                    sock?.ws?.close?.();
+                } catch (error) {
+                    // ignore cleanup failures
+                }
+                process.exit(0);
             } else {
                 console.log('🔁 Reîncerc conectarea în 5 secunde...');
                 setTimeout(() => startBot(), 5000);
@@ -1916,6 +2492,44 @@ async function startBot() {
             }
         }
 
+        // ==================== GAME 100 - MOVE HANDLER ====================
+        const game100 = active100Game.get(groupId);
+        if (game100 && !text.includes('cupidon')) {
+            const num = Number(text.trim());
+
+            if (isNaN(num) || num < 1 || num > 10) {
+                await botSend(sock, groupId, {
+                    text: `❌ Te rog scrie un număr între **1** și **10**.`
+                }, 'game100');
+                return;
+            }
+
+            const newTotal = game100.currentTotal + num;
+
+            if (newTotal > 100) {
+                await botSend(sock, groupId, {
+                    text: `❌ Nu poți depăși 100!\nTotal actual: *${game100.currentTotal}*`
+                }, 'game100');
+                return;
+            }
+
+            game100.currentTotal = newTotal;
+
+            if (newTotal === 100) {
+                await botSend(sock, groupId, {
+                    text: `🎉 *Felicitări! Ai ajuns la 100 și ai câștigat!* 🎉\n\n` +
+                          `Total final: *100*\n\n` +
+                          `Scrie *cupidon 100* pentru o nouă rundă.`
+                }, 'game100');
+                active100Game.delete(groupId);
+            } else {
+                await botSend(sock, groupId, {
+                    text: `✅ Ai adăugat *${num}*\n\nTotal actual: *${newTotal} / 100*\n\nUrmătorul jucător: scrie un număr (1-10)`
+                }, 'game100');
+            }
+            return;
+        }
+
         const activeNumberGame = activeNumberGames.get(groupId);
         if (activeNumberGame && !text.includes('cupidon')) {
             const guess = Number(text);
@@ -1975,6 +2589,40 @@ async function startBot() {
 
         if (!text) return;
 
+        // ==================== SPOTIFY ====================
+        if (text.includes('spotify')) {
+            await botSend(sock, groupId, {
+                text: `🎵 *Spotify*\n\n` +
+                      `Ascultă playlist-ul nostru special de dragoste:\n\n` +
+                      `https://open.spotify.com/playlist/0OjuUrZ2DLU3YR9BmR59kU?si=d885f30b548745dd&pt=ab91f3b996cfc94966ce8c0f2b09834e\n\n` +
+                      `❤️ Pune-l pe repeat când ești cu Stefania!`
+            }, 'spotify');
+            return;
+        }
+
+        // ==================== AMINTIRI ====================
+        if (text.includes('amintiri')) {
+            const amintiriMessages = [
+                "📸 Mai ții minte Stefania când aproape m-ai luat în brațe pe ulița aia plină cu noroi?",
+                "📸 Mai ții minte Stefania când aproape m-ai luat în brațe când era să intru în Albu?",
+                "📸 Mai ții minte Stefania când aproape te-am sărutat după ce ți-am luat telefonul și ai alergat după mine?",
+                "📸 Mai ții minte Stefania când ne-am luat în brațe din greșeală după ce ți-am luat telefonul?",
+                "📸 Mai ții minte Stefania când ne-am bătut cu portocale pe holul școlii?",
+                "📸 Mai ții minte Stefania când ne-am bătut pe hol și ți-am pus mâna în cap zicând „cutu bun”?",
+                "📸 Mai ții minte Stefania toate momentele frumoase pe care le-am trăit împreună?",
+                "📸 Fiecare plimbare cu tine e o amintire pe care o port în suflet.",
+                "📸 Amintirea preferată: când mă uit în ochii tăi și uit de toată lumea.",
+                "📸 Tu ești cea mai frumoasă amintire a vieții mele, în fiecare zi."
+            ];
+
+            const randomMemory = amintiriMessages[Math.floor(Math.random() * amintiriMessages.length)];
+
+            await botSend(sock, groupId, {
+                text: randomMemory
+            }, 'amintiri');
+            return;
+        }
+
         if (currentRiddle) {
             if (text.includes(currentRiddle.answer.toLowerCase())) {
                 await botSend(sock, groupId, { text: `🎉 *Corect!* Ești genială ❤️` }, 'riddle');
@@ -1984,43 +2632,48 @@ async function startBot() {
                 return;
             } else if (!text.includes('cupidon')) {
                 wrongAnswerCount++;
-                if (wrongAnswerCount >= MAX_WRONG_ANSWERS) {
+                if (wrongAnswerCount >= maxWrongAnswers()) {
                     await botSend(sock, groupId, {
-                        text: `❌ Ai greșit de ${MAX_WRONG_ANSWERS} ori! Ai pierdut 😅\nRăspunsul era: *${currentRiddle.answer}* ❤️`
+                        text: `❌ Ai greșit de ${maxWrongAnswers()} ori! Ai pierdut 😅\nRăspunsul era: *${currentRiddle.answer}* ❤️`
                     }, 'riddle');
                     clearTimeout(riddleTimeout);
                     currentRiddle = null;
                     wrongAnswerCount = 0;
                 } else {
-                    const remaining = MAX_WRONG_ANSWERS - wrongAnswerCount;
+                    const remaining = maxWrongAnswers() - wrongAnswerCount;
                     await botSend(sock, groupId, {
-                        text: `❌ Greșit, mai încearcă!\n\n${livesBar(remaining, MAX_WRONG_ANSWERS)}`
+                        text: `❌ Greșit, mai încearcă!\n\n${livesBar(remaining, maxWrongAnswers())}`
                     }, 'riddle');
                 }
                 return;
             }
         }
 
+        if (await handleSettingsText(sock, rawText)) {
+            return;
+        }
+
         if (text.includes('cupidon')) {
+            const tokens = text.split(/\s+/).filter(Boolean);
+
+            if (text.includes('setari') || text.includes('settings')) {
+                await sendSettingsMenu(sock);
+                return;
+            }
+
             // Immediate test sender: `cupidon sendnow <type>`
             if (text.includes('sendnow')) {
-                const parts = text.split(/\s+/);
-                const idx = parts.indexOf('sendnow');
-                const typeArg = parts[idx + 1] || null;
+                const idx = tokens.indexOf('sendnow');
+                const typeArg = tokens[idx + 1] || null;
                 const allowed = ['romantic', 'rizz', 'flirt', 'pickup', 'riddle'];
                 if (typeArg && allowed.includes(typeArg)) {
-                    if (typeArg === 'riddle') {
-                        await sendCommandReply(sock, 'riddle');
-                    } else {
-                        await sendCommandReply(sock, typeArg);
-                    }
+                    await sendCommandReply(sock, typeArg);
                 } else {
                     await botSend(sock, groupId, { text: `Usage: cupidon sendnow <romantic|rizz|flirt|pickup|riddle>` });
                 }
                 return;
             }
 
-            // FIX (carried over): was a literal duplicate `includes('impreuna') || includes('impreuna')`.
             if (text.includes('impreuna')) {
                 await botSend(sock, groupId, {
                     text: `❤️ Sunteți împreună de:\n*${getTimeTogether()}*`
@@ -2101,10 +2754,6 @@ async function startBot() {
                 return;
             }
 
-            // FIX (carried over): dropped the tripled 'imagineaza' clause, and this
-            // no longer hand-prepends BOT_NAME into the body — that used to double
-            // up the branding (the outer card header plus a second "🏹 Cupidon"
-            // line baked into the text itself). It now just uses its own type.
             if (text.includes('imagineazati') || text.includes('imagineaza')) {
                 await botSend(sock, groupId, { text: buildImagineMessage() }, 'imagine');
                 return;
@@ -2142,9 +2791,33 @@ async function startBot() {
                 return;
             }
 
-            // FIX (carried over): was a literal duplicate `includes('lovequote') || includes('lovequote')`.
             if (text.includes('lovequote')) {
                 await sendCommandReply(sock, 'lovequote');
+                return;
+            }
+
+            if (text.includes('vibe') || text.includes('mood')) {
+                await startMoodCheck(sock);
+                return;
+            }
+
+            if (text.includes('aura')) {
+                await startAuraReading(sock);
+                return;
+            }
+
+            if (text.includes('quote')) {
+                await startDailyQuote(sock);
+                return;
+            }
+
+            if (text.includes('tarot')) {
+                await startTarotSpread(sock);
+                return;
+            }
+
+            if (text.includes('rate')) {
+                await startRateCommand(sock, rawText);
                 return;
             }
 
@@ -2163,10 +2836,6 @@ async function startBot() {
                 return;
             }
 
-            // FIX (carried over): alt-text used to be a run-together, unaccented
-            // word that normalizeText() (which preserves spaces) could never
-            // produce from "bună dimineața" / "bună noapte" — now matches what
-            // normalizeText() actually outputs.
             if (text.includes('goodmorning') || text.includes('buna dimineata')) {
                 await sendCommandReply(sock, 'goodmorning');
                 return;
@@ -2319,7 +2988,6 @@ async function startBot() {
                 return;
             }
 
-            // FIX (carried over): was a literal duplicate `includes('dedicatie') || includes('dedicatie')`.
             if (text.includes('dedicatie')) {
                 await sendCommandReply(sock, 'dedicatie');
                 return;
@@ -2353,7 +3021,7 @@ async function startBot() {
 
             if (text.includes('games') || text.includes('jocuri')) {
                 await botSend(sock, groupId, {
-                    text: `🧠 riddle / ghicitoare\n🎮 tictactoe\n🪨 rps\n🧠 quiz\n🔢 numar\n🎲 dice\n🪙 coin\n🔮 8ball / fortune\n🎰 slot\n🧩 scramble\n🎯 hangman\n🧩 anagram\n🧠 emojiquiz\n🧮 math\n🎨 color\n🎲 choose\n\nScrie *cupidon <nume joc>* pentru a începe!`
+                    text: `🧠 riddle / ghicitoare\n🎮 tictactoe\n🪨 rps\n🧠 quiz\n🔢 numar\n🎲 dice\n🪙 coin\n🔮 8ball / fortune\n🎰 slot\n🧩 scramble\n🎯 hangman\n🧩 anagram\n🧠 emojiquiz\n🧮 math\n🎨 color\n🐾 animal\n🎲 choose\n\nScrie *cupidon <nume joc>* pentru a începe!`
                 }, 'help');
                 return;
             }
@@ -2413,17 +3081,23 @@ async function startBot() {
                 return;
             }
 
-            if (text.includes('cupidon sapt') || text.includes('cupidon saptamana')) {
+            // FIX: these used to check for the literal substring "cupidon sapt"
+            // etc, which happened to work but only because "cupidon" is always
+            // the first word — fragile if extra words were added. They also
+            // used to have no safe fallback (see sendMilestoneMessage fix
+            // above). Now driven off whole-word tokens so nothing collides
+            // with words like "rom-an-tic" that merely contain "an".
+            if (tokens.includes('sapt') || tokens.includes('saptamana')) {
                 await sendMilestoneMessage(sock, 'sapt');
                 return;
             }
 
-            if (text.includes('cupidon luna')) {
+            if (tokens.includes('luna')) {
                 await sendMilestoneMessage(sock, 'luna');
                 return;
             }
 
-            if (text.includes('cupidon an')) {
+            if (tokens.includes('an')) {
                 await sendMilestoneMessage(sock, 'an');
                 return;
             }
@@ -2446,30 +3120,55 @@ async function startBot() {
                 return;
             }
 
+            if (text.includes('100')) {
+                if (!active100Game.has(groupId)) {
+                    active100Game.set(groupId, { currentTotal: 0 });
+                    await botSend(sock, groupId, {
+                        text: `🔢 *Jocul 100* a început!\n\n` +
+                              `Total actual: *0*\n\n` +
+                              `Fiecare jucător adaugă un număr între *1* și *10*.\n` +
+                              `Cine ajunge primul la exact *100* câștigă! 🎉\n\n` +
+                              `Scrie un număr (1-10)`,
+                    }, 'game100');
+                } else {
+                    const total = active100Game.get(groupId).currentTotal;
+                    await botSend(sock, groupId, {
+                        text: `🔢 Jocul 100 este deja activ!\nTotal actual: *${total}*`
+                    }, 'game100');
+                }
+                return;
+            }
+
             await botSend(sock, groupId, {
                 text: `Nu am înțeles comanda 🤔\nÎncearcă: *cupidon help* și ghidează-te de acolo`
             });
             return;
         }
 
-        if (TEST_MODE) {
+        if (settings.testMode) {
             await sendCommandReply(sock, null);
         }
     });
 
-    // Schedule hourly messages from 10:00 to 23:00 with rotating message types
-    const messageTypes = ['romantic', 'rizz', 'flirt', 'pickup'];
-
+    // Schedule hourly messages from 10:00 to 23:00 with rotating message types.
+    // Reads settings.hourlyMessageTypes and settings.hourlyMessagesEnabled live
+    // on every tick, so toggling them in "cupidon setari" takes effect on the
+    // very next scheduled hour without needing a restart.
     for (let hour = 10; hour <= 23; hour++) {
-        const messageType = messageTypes[(hour - 10) % messageTypes.length];
         const cronTime = `0 ${hour} * * *`;
 
         cron.schedule(cronTime, async () => {
+            if (!settings.hourlyMessagesEnabled) return;
+            const types = settings.hourlyMessageTypes && settings.hourlyMessageTypes.length
+                ? settings.hourlyMessageTypes
+                : DEFAULT_SETTINGS.hourlyMessageTypes;
+            const messageType = types[(hour - 10) % types.length];
             await sendCommandReply(sock, messageType);
         }, { timezone: 'Europe/Bucharest' });
     }
 
     cron.schedule('0 0 * * *', async () => {
+        if (!settings.dailyMilestoneEnabled) return;
         const time = getTimeTogether().split(',')[0];
         await botSend(sock, groupId, {
             text: `🎉 Ați ajuns la ❤️ *${time}* ❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`

@@ -2344,50 +2344,57 @@ function restartWithFreshAuth(authDir) {
 }
 
 async function startBot() {
-    const AUTH_DIR = process.env.AUTH_DIR || 'auth';
-    stopPreviousBotInstance();
-    writePidFile();
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    console.log('🚀 Starting bot initialization...');
+    try {
+        const AUTH_DIR = process.env.AUTH_DIR || 'auth';
+        console.log(`📁 Using AUTH_DIR: ${AUTH_DIR}`);
+        stopPreviousBotInstance();
+        writePidFile();
+        console.log('📝 Reading auth state...');
+        const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+        console.log('✅ Auth state loaded');
 
-    // Always fetch the latest WhatsApp Web protocol version.
-    // Baileys reverse-engineers WhatsApp's protocol, so using a stale
-    // hardcoded version is one of the most common causes of 401/405
-    // "Connection Failure" errors right after WhatsApp updates.
-    const { version, isLatest } = await fetchLatestBaileysVersion();
-    console.log(`ℹ️ Folosesc WA v${version.join('.')}, este ultima versiune: ${isLatest}`);
+        // Always fetch the latest WhatsApp Web protocol version.
+        // Baileys reverse-engineers WhatsApp's protocol, so using a stale
+        // hardcoded version is one of the most common causes of 401/405
+        // "Connection Failure" errors right after WhatsApp updates.
+        console.log('🔄 Fetching latest Baileys version...');
+        const { version, isLatest } = await fetchLatestBaileysVersion();
+        console.log(`ℹ️ Folosesc WA v${version.join('.')}, este ultima versiune: ${isLatest}`);
 
-    const sock = makeWASocket({
-        version,
-        auth: state,
-        browser: Browsers.macOS('Desktop'),
-        syncFullHistory: false,
-        shouldIgnoreJid: jid => jid?.includes('broadcast')
-    });
+        console.log('🔌 Creating WhatsApp socket...');
+        const sock = makeWASocket({
+            version,
+            auth: state,
+            browser: Browsers.macOS('Desktop'),
+            syncFullHistory: false,
+            shouldIgnoreJid: jid => jid?.includes('broadcast')
+        });
 
-    sock.ev.on('creds.update', saveCreds);
+        sock.ev.on('creds.update', saveCreds);
 
-    const handleShutdown = async (signal) => {
-        if (shutdownAnnounced) {
-            process.exit(0);
-            return;
-        }
-        shutdownAnnounced = true;
-        console.log(`🛑 Se primește oprirea (${signal})...`);
-        try {
-            if (sock && sock.user && sock.sendMessage) {
-                await botSend(sock, groupId, { text: `😴 Cupidon pleacă, ne vedem data viitoare!` });
-            } else {
-                console.log('⚠️ Socket nu e conectat, nu se trimite mesajul de închidere.');
+        const handleShutdown = async (signal) => {
+            if (shutdownAnnounced) {
+                process.exit(0);
+                return;
             }
-        } catch (error) {
-            console.log('⚠️ Nu s-a putut trimite mesajul de închidere:', error.message);
-        }
-        process.exit(0);
-    };
+            shutdownAnnounced = true;
+            console.log(`🛑 Se primește oprirea (${signal})...`);
+            try {
+                if (sock && sock.user && sock.sendMessage) {
+                    await botSend(sock, groupId, { text: `😴 Cupidon pleacă, ne vedem data viitoare!` });
+                } else {
+                    console.log('⚠️ Socket nu e conectat, nu se trimite mesajul de închidere.');
+                }
+            } catch (error) {
+                console.log('⚠️ Nu s-a putut trimite mesajul de închidere:', error.message);
+            }
+            process.exit(0);
+        };
 
-    process.once('SIGINT', () => handleShutdown('SIGINT'));
-    process.once('SIGTERM', () => handleShutdown('SIGTERM'));
-    process.once('exit', () => clearPidFile());
+        process.once('SIGINT', () => handleShutdown('SIGINT'));
+        process.once('SIGTERM', () => handleShutdown('SIGTERM'));
+        process.once('exit', () => clearPidFile());
 
     let botStartupTimestamp = Math.floor(Date.now() / 1000);
 
@@ -3178,10 +3185,11 @@ async function startBot() {
             text: `🎉 Ați ajuns la ❤️ *${time}* ❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
         }, 'milestone');
     }, { timezone: 'Europe/Bucharest' });
+    } catch (error) {
+        console.error('❌ CRITICAL: Failed to initialize bot:', error);
+        console.error('Stack trace:', error.stack);
+        console.log('⚠️ Web server remains active. Check auth directory and environment variables.');
+    }
 }
 
-startBot().catch((error) => {
-    console.error('❌ CRITICAL: Failed to initialize bot:', error);
-    console.error('Stack trace:', error.stack);
-    console.log('⚠️ Web server remains active. Check auth directory and environment variables.');
-});
+startBot();

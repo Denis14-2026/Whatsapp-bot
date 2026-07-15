@@ -3,8 +3,25 @@ const cron = require('node-cron');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const { spawn } = require('child_process');
 const pidFile = path.join(__dirname, '.bot.pid');
+
+// Start HTTP server immediately so Railway sees a running process
+const PORT = process.env.PORT || 3000;
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Cupidon bot is alive.\n');
+});
+
+server.listen(PORT, () => {
+    console.log(`🌐 Server listening on port ${PORT}`);
+});
+
+server.on('error', (error) => {
+    console.log('⚠️ Web server error:', error.message);
+});
+
 
 const startDate = new Date('2026-06-24T00:00:00');
 const groupId = '58145535742158@lid';
@@ -2396,58 +2413,58 @@ async function startBot() {
         process.once('SIGTERM', () => handleShutdown('SIGTERM'));
         process.once('exit', () => clearPidFile());
 
-    let botStartupTimestamp = Math.floor(Date.now() / 1000);
+        let botStartupTimestamp = Math.floor(Date.now() / 1000);
 
-    sock.ev.on('connection.update', (update) => {
-        const { connection, qr, pairingCode, lastDisconnect } = update;
+        sock.ev.on('connection.update', (update) => {
+            const { connection, qr, pairingCode, lastDisconnect } = update;
 
-        if (qr) {
-            console.log('📱 Scanează codul QR:');
-            qrcode.generate(qr, { small: true });
-        }
-        if (pairingCode) {
-            console.log('🔐 Cod de asociere:', pairingCode);
-        }
-        if (connection === 'open') {
-            console.log('✅ Cupidon este pornit și conectat!');
-            if (!startupAnnounced) {
-                startupAnnounced = true;
-                botSend(sock, groupId, { text: `🤖✨ Cupidon este online și gata de treabă!\nScrie *cupidon help* pentru meniu sau *cupidon setari* pentru configurări.` })
-                    .catch(() => {});
+            if (qr) {
+                console.log('📱 Scanează codul QR:');
+                qrcode.generate(qr, { small: true });
             }
-            if (settings.testMode) {
-                console.log('🧪 Test Mode este ACTIV — orice mesaj din grup declanșează un mesaj random.');
+            if (pairingCode) {
+                console.log('🔐 Cod de asociere:', pairingCode);
             }
-        }
-        if (connection === 'close') {
-            const statusCode = lastDisconnect?.error?.output?.statusCode;
-            const message = lastDisconnect?.error?.message || lastDisconnect?.error?.output?.payload?.message || 'Conexiune închisă';
-            console.log('❌ Conexiune închisă. Cod:', statusCode, '-', message);
-
-            const loggedOut = statusCode === 401;
-            const conflict = statusCode === 440 || /conflict|replaced/i.test(message);
-
-            if (loggedOut) {
-                console.log('🚪 Autentificarea a eșuat. Se resetează sesiunea și se încearcă reconectarea.');
-                restartWithFreshAuth(AUTH_DIR);
-            } else if (conflict) {
-                console.log('⚠️ O altă sesiune WhatsApp este activă. Se oprește botul pentru a evita bucla de reconectare. Repornește-l manual după ce sesiunea veche a fost închisă.');
-                try {
-                    sock?.ws?.close?.();
-                } catch (error) {
-                    // ignore cleanup failures
+            if (connection === 'open') {
+                console.log('✅ Cupidon este pornit și conectat!');
+                if (!startupAnnounced) {
+                    startupAnnounced = true;
+                    botSend(sock, groupId, { text: `🤖✨ Cupidon este online și gata de treabă!\nScrie *cupidon help* pentru meniu sau *cupidon setari* pentru configurări.` })
+                        .catch(() => {});
                 }
-                process.exit(0);
-            } else {
-                console.log('🔁 Reîncerc conectarea în 5 secunde...');
-                setTimeout(() => startBot(), 5000);
+                if (settings.testMode) {
+                    console.log('🧪 Test Mode este ACTIV — orice mesaj din grup declanșează un mesaj random.');
+                }
             }
-        }
-    });
+            if (connection === 'close') {
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                const message = lastDisconnect?.error?.message || lastDisconnect?.error?.output?.payload?.message || 'Conexiune închisă';
+                console.log('❌ Conexiune închisă. Cod:', statusCode, '-', message);
 
-    sock.ev.on('messages.upsert', async ({ messages }) => {
-        const msg = messages[0];
-        if (!msg.message) return;
+                const loggedOut = statusCode === 401;
+                const conflict = statusCode === 440 || /conflict|replaced/i.test(message);
+
+                if (loggedOut) {
+                    console.log('🚪 Autentificarea a eșuat. Se resetează sesiunea și se încearcă reconectarea.');
+                    restartWithFreshAuth(AUTH_DIR);
+                } else if (conflict) {
+                    console.log('⚠️ O altă sesiune WhatsApp este activă. Se oprește botul pentru a evita bucla de reconectare. Repornește-l manual după ce sesiunea veche a fost închisă.');
+                    try {
+                        sock?.ws?.close?.();
+                    } catch (error) {
+                        // ignore cleanup failures
+                    }
+                    process.exit(0);
+                } else {
+                    console.log('🔁 Reîncerc conectarea în 5 secunde...');
+                    setTimeout(() => startBot(), 5000);
+                }
+            }
+        });
+
+        sock.ev.on('messages.upsert', async ({ messages }) => {
+            const msg = messages[0];
+            if (!msg.message) return;
 
         const messageTimestamp = msg.messageTimestamp || msg.message?.messageTimestamp || msg.key?.timestamp || 0;
         if (messageTimestamp && messageTimestamp < botStartupTimestamp) {
@@ -3191,5 +3208,18 @@ async function startBot() {
         console.log('⚠️ Web server remains active. Check auth directory and environment variables.');
     }
 }
+
+// Global error handlers - catch uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    console.error('Stack:', error.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Promise Rejection:', reason);
+    if (reason instanceof Error) {
+        console.error('Stack:', reason.stack);
+    }
+});
 
 startBot();

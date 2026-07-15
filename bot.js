@@ -3,8 +3,23 @@ const cron = require('node-cron');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const { spawn } = require('child_process');
 const pidFile = path.join(__dirname, '.bot.pid');
+
+const PORT = process.env.PORT || 3000;
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Cupidon bot is alive.');
+});
+
+server.listen(PORT, () => {
+    console.log(`🌐 Server listening on port ${PORT}`);
+});
+
+server.on('error', (error) => {
+    console.log('⚠️ Web server error:', error.message);
+});
 
 const startDate = new Date('2026-06-24T00:00:00');
 const groupId = '58145535742158@lid';

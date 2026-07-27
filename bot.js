@@ -1456,6 +1456,22 @@ const CATEGORY_GAME_VARIANTS = {
     'desene animate': {
         label: 'Desene Animate',
         items: ['tom si jerry', 'spongebob patratel', 'donald duck', 'mickey mouse', 'alvin si veveritele', 'paw patrol', 'minionii', 'simpsons', 'frozen', 'toy story']
+    },
+    masini: {
+        label: 'Mașini',
+        items: ['ferrari', 'lamborghini', 'porsche', 'bugatti', 'rolls royce', 'mercedes', 'bmw', 'audi', 'tesla', 'aston martin', 'mclaren', 'bentley']
+    },
+    gard: {
+        label: 'Gard',
+        items: ['gard din lemn', 'gard din metal', 'gard din beton', 'gard din piatră', 'gard electric', 'gard viu', 'gard transparent', 'gard din caramida', 'gard prefabricat', 'gard decorativ']
+    },
+    succuuri: {
+        label: 'Sucursale/Magazine',
+        items: ['lidl', 'kaufland', 'carrefour', 'auchan', 'penny', 'dedeman', 'praktiker', 'emag', 'altex', 'el smarty', 'brico depot', 'metro']
+    },
+    bani: {
+        label: 'Bani',
+        items: ['leul', 'euro', 'dolar', 'lira turca', 'zlot polonez', 'forinta maghiara', 'coroana ceha', 'franc elvețian', 'liră sterlină', 'ien japonez', 'won coreean', 'rupie indiană']
     }
 };
 
@@ -2441,7 +2457,7 @@ function restartWithFreshAuth(authDir) {
     process.exit(0);
 }
 
-async function startBot()
+async function startBot() {
     console.log('🚀 Starting bot initialization...');
     try {
         const AUTH_DIR = process.env.AUTH_DIR || 'auth';

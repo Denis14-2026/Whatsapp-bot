@@ -3147,55 +3147,6 @@ async function startBot() {
             });
             return;
         }
-            // etc, which happened to work but only because "cupidon" is always
-            // the first word — fragile if extra words were added. They also
-            // used to have no safe fallback (see sendMilestoneMessage fix
-            // above). Now driven off whole-word tokens so nothing collides
-            // with words like "rom-an-tic" that merely contain "an".
-            if (tokens.includes('sapt') || tokens.includes('saptamana')) {
-                await sendMilestoneMessage(sock, 'sapt');
-                return;
-            }
-
-            if (tokens.includes('luna')) {
-                await sendMilestoneMessage(sock, 'luna');
-                return;
-            }
-
-            if (tokens.includes('an')) {
-                await sendMilestoneMessage(sock, 'an');
-                return;
-            }
-
-            if (text.includes('test')) {
-                await sendCommandReply(sock, null);
-                return;
-            }
-
-            if (text.includes('100')) {
-                if (!active100Game.has(groupId)) {
-                    active100Game.set(groupId, { currentTotal: 0 });
-                    await botSend(sock, groupId, {
-                        text: `🔢 *Jocul 100* a început!\n\n` +
-                              `Total actual: *0*\n\n` +
-                              `Fiecare jucător adaugă un număr între *1* și *10*.\n` +
-                              `Cine ajunge primul la exact *100* câștigă! 🎉\n\n` +
-                              `Scrie un număr (1-10)`,
-                    }, 'game100');
-                } else {
-                    const total = active100Game.get(groupId).currentTotal;
-                    await botSend(sock, groupId, {
-                        text: `🔢 Jocul 100 este deja activ!\nTotal actual: *${total}*`
-                    }, 'game100');
-                }
-                return;
-            }
-
-            await botSend(sock, groupId, {
-                text: `Nu am înțeles comanda 🤔\nÎncearcă: *cupidon help* și ghidează-te de acolo`
-            });
-            return;
-        }
 
         if (settings.testMode) {
             await sendCommandReply(sock, null);
@@ -3226,7 +3177,7 @@ async function startBot() {
             text: `🎉 Ați ajuns la ❤️ *${time}* ❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
         }, 'milestone');
     }, { timezone: 'Europe/Bucharest' });
-    catch (error) {
+    } catch (error) {
         console.error('❌ CRITICAL: Failed to initialize bot:', error);
         console.error('Stack trace:', error.stack);
         console.log('⚠️ Web server remains active. Check auth directory and environment variables.');

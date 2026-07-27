@@ -2451,7 +2451,7 @@ function restartWithFreshAuth(authDir) {
     stopPreviousBotInstance();
 
     console.log('🔄 Se resetează sesiunea WhatsApp și se pornește o nouă instanță...');
-    const child = spawn(process.execPath, [path.join(__dirname, 'bot.js')], {
+    const child = spawn(process.execPath, [path.join(__dirname, 'main.js')], {
         cwd: __dirname,
         detached: true,
         stdio: 'inherit',

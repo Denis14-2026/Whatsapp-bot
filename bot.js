@@ -5,7 +5,16 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
-const loveLayers = require('./test');
+
+// Default love layers for decorative message styling
+const loveLayers = [
+    { border: '✦' + '━'.repeat(20) + '✦', accent: ['✨', '💫'], corners: ['💝', '💝'] },
+    { border: '❤️' + '━'.repeat(18) + '❤️', accent: ['💖', '💖'], corners: ['✦', '✦'] },
+    { border: '💕' + '━'.repeat(18) + '💕', accent: ['🌹', '🌹'], corners: ['💫', '💫'] },
+    { border: '🌸' + '━'.repeat(18) + '🌸', accent: ['✨', '✨'], corners: ['💕', '💕'] },
+    { border: '💞' + '━'.repeat(18) + '💞', accent: ['💖', '💖'], corners: ['🌹', '🌹'] }
+];
+
 const pidFile = path.join(__dirname, '.bot.pid');
 
 // Start HTTP server immediately so Railway sees a running process

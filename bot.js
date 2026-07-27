@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
+const loveLayers = require('./test');
 const pidFile = path.join(__dirname, '.bot.pid');
 
 // Start HTTP server immediately so Railway sees a running process
@@ -131,23 +132,14 @@ const styleMap = {
     milestone:      { icon: '🎉', title: 'Repere', category: 'R E L A Ț I E' },
 
     // GAME
-    diceGame:       { icon: '🎲', title: 'Zaruri', category: 'G A M E' },
-    coinGame:       { icon: '🪙', title: 'Cap sau Pajură', category: 'G A M E' },
-    eightball:      { icon: '🔮', title: 'Magic 8 Ball', category: 'G A M E' },
     slotGame:       { icon: '🎰', title: 'Slot Machine', category: 'G A M E' },
     hangman:        { icon: '🎯', title: 'Spânzurătoarea', category: 'G A M E' },
-    anagram:        { icon: '🧩', title: 'Anagramă', category: 'G A M E' },
-    emojiquiz:      { icon: '🧠', title: 'Emoji Quiz', category: 'G A M E' },
-    mathquiz:       { icon: '🧮', title: 'Math Quiz', category: 'G A M E' },
-    colorguess:     { icon: '🎨', title: 'Ghicește Culoarea', category: 'G A M E' },
-    trivia:         { icon: '🧠', title: 'Trivia', category: 'G A M E' },
-    animalguess:    { icon: '🐾', title: 'Ghicește Animalul', category: 'G A M E' },
     numberguess:    { icon: '🔢', title: 'Ghicește Numărul', category: 'G A M E' },
     scramble:       { icon: '🧩', title: 'Cuvânt Amestecat', category: 'G A M E' },
     tictactoe:      { icon: '🎮', title: 'TicTacToe', category: 'G A M E' },
-    rps:            { icon: '🪨', title: 'Piatră, Foarfecă, Hârtie', category: 'G A M E' },
     quiz:           { icon: '🧠', title: 'Quiz Cuplu', category: 'G A M E' },
-    game100:        { icon: '🔢', title: '100', category: 'G A M E' }
+    game100:        { icon: '🔢', title: '100', category: 'G A M E' },
+    categorygame:   { icon: '🌸', title: 'Flori Fete Baieti', category: '1 V 1' }
 };
 
 // Unicode "bold sans" lookalikes for plain ASCII letters/digits — gives
@@ -169,6 +161,17 @@ function toBoldUnicode(str) {
     return String(str).split('').map(ch => BOLD_MAP[ch] || ch).join('');
 }
 
+function randomItem(arr) {
+    return Array.isArray(arr) && arr.length ? arr[Math.floor(Math.random() * arr.length)] : '';
+}
+
+function getRandomLayer() {
+    if (!Array.isArray(loveLayers) || loveLayers.length === 0) {
+        return null;
+    }
+    return loveLayers[Math.floor(Math.random() * loveLayers.length)];
+}
+
 // ============================================================
 // VISUAL CARD (v2)
 // ------------------------------------------------------------
@@ -185,15 +188,20 @@ function toBoldUnicode(str) {
 function decorateMessage(body, type = 'general') {
     const style = styleMap[type] || styleMap.general;
     const cleanBody = String(body).replace(/\n{3,}/g, '\n\n').trim();
-    const edge = '✦' + RULE + '✦';
+    const layer = getRandomLayer();
+    const edge = layer?.border || ('✦' + RULE + '✦');
+    const accent = randomItem(layer?.accent) || '';
+    const corner = randomItem(layer?.corners) || '';
 
     const lines = [];
     lines.push(edge);
-    if (style.category) lines.push(`   ✧ ${style.category} ✧`);
-    lines.push(`   ${style.icon}  ${toBoldUnicode(style.title)}`);
+    if (style.category) lines.push(`   ${accent}${style.category}${accent}`);
+    lines.push(`   ${corner} ${style.icon}  ${toBoldUnicode(style.title)} ${corner}`.trim());
     lines.push(edge);
     lines.push('');
-    lines.push(cleanBody);
+
+    const bodyLines = cleanBody.split('\n').map(line => accent ? `${accent} ${line}` : line);
+    lines.push(...bodyLines);
     lines.push('');
     lines.push(`${FOOTER} · cupidon help`);
 
@@ -934,12 +942,11 @@ ${RULE}
 ${RULE}
 🎮 *GAMES*
 ${RULE}
-🎮 tictactoe   🪨 rps         🧠 quiz
-🔢 numar       🎲 dice        🪙 coin
-🔮 8ball       🎰 slot        🧩 scramble
-🎯 hangman     🧩 anagram     🧠 emojiquiz
-🧮 math        🎨 color       🧠 trivia
-🐾 animal      🎲 choose      🔢 100
+🎮 tictactoe   � quiz       🔢 numar
+🎰 slot       🧩 scramble   🎯 hangman
+🔢 100        🌸 flori/fete/baieti
+🔸 actori     🔸 cantareti   🔸 filme
+🔸 bucate     🔸 desene animate
 
 ${RULE}
 ⚙️ *SETĂRI*
@@ -1304,67 +1311,6 @@ async function handleTicTacToeButton(sock, buttonId) {
 }
 
 // ============================================================
-// ROCK · PAPER · SCISSORS  (Piatră, Foarfecă, Hârtie)
-// ============================================================
-
-const RPS_CHOICES = {
-    piatra: { label: '🪨 Piatră', emoji: '🪨', beats: 'foarfeca' },
-    foarfeca: { label: '✂️ Foarfecă', emoji: '✂️', beats: 'hartie' },
-    hartie: { label: '📄 Hârtie', emoji: '📄', beats: 'piatra' }
-};
-
-function pickRpsChoice() {
-    const keys = Object.keys(RPS_CHOICES);
-    // FIX: used to be a plain Math.random() pick, so the bot could throw
-    // the same move several times in a row. Routed through the no-repeat
-    // deck like every other pick in the file.
-    return pickNoRepeat('rps_bot_choice', keys);
-}
-
-// FIX (carried over): this used to take a `chatId` second argument that
-// nothing ever passed in, so it always hit its own "undefined" guard and
-// silently sent nothing. It always targets the configured group now.
-async function startRpsGame(sock) {
-    const buttons = [
-        { buttonId: 'rps_piatra',   buttonText: { displayText: '🪨 Piatră' },   type: 1 },
-        { buttonId: 'rps_foarfeca', buttonText: { displayText: '✂️ Foarfecă' }, type: 1 },
-        { buttonId: 'rps_hartie',   buttonText: { displayText: '📄 Hârtie' },   type: 1 }
-    ];
-
-    await trackSendMessage(sock, groupId, {
-        text: `${cardHeader('rps')}\n\nAlege-ți mutarea!\n${RULE}\n${FOOTER}`,
-        footer: '✦ Cupidon',
-        buttons: buttons,
-        headerType: 1
-    });
-}
-
-async function handleRpsChoice(sock, buttonId) {
-    const playerChoice = buttonId.replace('rps_', '');
-    if (!RPS_CHOICES[playerChoice]) {
-        await botSend(sock, groupId, { text: `❗ Alegere invalidă.` }, 'rps');
-        return;
-    }
-
-    const botChoice = pickRpsChoice();
-    const playerLabel = RPS_CHOICES[playerChoice].label;
-    const botLabel = RPS_CHOICES[botChoice].label;
-
-    let resultText;
-    if (playerChoice === botChoice) {
-        resultText = '🤝 *Egalitate!* Amândoi ați ales la fel.';
-    } else if (RPS_CHOICES[playerChoice].beats === botChoice) {
-        resultText = '🎉 *Ai câștigat!* Felicitări!';
-    } else {
-        resultText = '😅 *Cupidon a câștigat* de data asta!';
-    }
-
-    await botSend(sock, groupId, {
-        text: `Tu ai ales: ${playerLabel}\nCupidon a ales: ${botLabel}\n\n${resultText}\n\nScrie *cupidon rps* pentru o revanșă!`
-    }, 'rps');
-}
-
-// ============================================================
 // QUIZ CUPLU (multiple-choice quiz, no repeat until pool cycles)
 // ============================================================
 
@@ -1477,6 +1423,173 @@ async function handleNumberGuess(sock, game, guess) {
     }, 'numberguess');
 }
 
+const activeCategoryGames = new Map();
+const CATEGORY_GAME_VARIANTS = {
+    flori: {
+        label: 'Flori',
+        items: ['trandafir', 'lalea', 'garoafa', 'crin', 'narcisa', 'zambila', 'orhidee', 'iris', 'bujor', 'albastrele', 'papucul doamnei', 'margareta']
+    },
+    fete: {
+        label: 'Fete',
+        items: ['andreea', 'alexandra', 'elena', 'ioana', 'maria', 'stefania', 'bianca', 'cristina', 'amelia', 'gabriela', 'laura', 'diana']
+    },
+    baieti: {
+        label: 'Băieți',
+        items: ['denis', 'mihai', 'alex', 'andrei', 'stefan', 'vlad', 'robert', 'romania', 'george', 'adrian', 'gabriel', 'lucian']
+    },
+    actori: {
+        label: 'Actori',
+        items: ['brad pitt', 'leonardo dicaprio', 'meryl streep', 'tom hanks', 'julianne moore', 'scarlett johansson', 'robert downey jr', 'natalie portman', 'jennifer lawrence', 'chris hemsworth']
+    },
+    cantareti: {
+        label: 'Cântăreți',
+        items: ['adele', 'rihanna', 'justin bieber', 'shakira', 'ed sheeran', 'beyonce', 'madonna', 'taylor swift', 'michael jackson', 'elvis presley']
+    },
+    filme: {
+        label: 'Filme',
+        items: ['titanic', 'inception', 'avatar', 'interstellar', 'gladiator', 'matrix', 'shawshank redemption', 'la la land', 'the notebook', 'the godfather']
+    },
+    bucate: {
+        label: 'Bucate',
+        items: ['pizza', 'paste', 'sarmale', 'ciorba', 'mamaliga', 'salata', 'pui la cuptor', 'friptura', 'tocanita', 'orez']
+    },
+    'desene animate': {
+        label: 'Desene Animate',
+        items: ['tom si jerry', 'spongebob patratel', 'donald duck', 'mickey mouse', 'alvin si veveritele', 'paw patrol', 'minionii', 'simpsons', 'frozen', 'toy story']
+    }
+};
+
+function normalizeCategoryAnswer(text) {
+    return normalizeText(text).replace(/\s+/g, ' ').trim();
+}
+
+function getShortParticipantName(participantId) {
+    if (!participantId) return 'Jucător';
+    const name = participantId.split('@')[0];
+    return name || 'Jucător';
+}
+
+async function startCategoryGame(sock, categoryKey, starterId) {
+    const category = CATEGORY_GAME_VARIANTS[categoryKey];
+    if (!category) return;
+
+    activeCategoryGames.set(groupId, {
+        categoryKey,
+        phase: 'waiting',
+        players: [starterId],
+        currentPlayerIndex: 0,
+        usedItems: new Set(),
+        validAnswers: new Set(category.items.map(normalizeCategoryAnswer))
+    });
+
+    await botSend(sock, groupId, {
+        text: `🌸 *Joc 1v1: ${category.label}*
+
+Ai lansat un joc 1v1 în categoria *${category.label}*.
+Primul jucător este *${getShortParticipantName(starterId)}*.
+
+Al doilea jucător trebuie să scrie *cupidon join* pentru a se alătura.
+
+Reguli:
+- Nu repeta un răspuns deja folosit.
+- Scrie un răspuns valid din categoria *${category.label}*.
+- Primul jucător care greșește pierde.
+
+Scrie *cupidon join* ca să înceapă jocul.`
+    }, 'categorygame');
+}
+
+async function joinCategoryGame(sock, game, participantId) {
+    if (!game || game.phase !== 'waiting') return;
+
+    if (game.players.includes(participantId)) {
+        await botSend(sock, groupId, { text: `⚠️ Ești deja înscris în joc.` }, 'categorygame');
+        return;
+    }
+
+    if (game.players.length >= 2) {
+        await botSend(sock, groupId, { text: `⚠️ Jocul 1v1 este deja complet.` }, 'categorygame');
+        return;
+    }
+
+    game.players.push(participantId);
+    game.phase = 'playing';
+    game.currentPlayerIndex = 0;
+
+    await botSend(sock, groupId, {
+        text: `🎮 *Joc 1v1 început!*
+Categoria: *${CATEGORY_GAME_VARIANTS[game.categoryKey].label}*
+
+Jucători:
+1️⃣ *${getShortParticipantName(game.players[0])}*
+2️⃣ *${getShortParticipantName(game.players[1])}*
+
+Îi este rândul lui *${getShortParticipantName(game.players[game.currentPlayerIndex])}*.
+Scrie un răspuns valid din categoria *${CATEGORY_GAME_VARIANTS[game.categoryKey].label}* fără *cupidon*.`
+    }, 'categorygame');
+}
+
+async function handleCategoryGameGuess(sock, game, participantId, rawText) {
+    if (!game || game.phase !== 'playing') return false;
+
+    const currentPlayerId = game.players[game.currentPlayerIndex];
+    const otherPlayerId = game.players[1 - game.currentPlayerIndex];
+
+    if (participantId !== currentPlayerId) {
+        await botSend(sock, groupId, {
+            text: `⏳ Aștept răspunsul lui *${getShortParticipantName(currentPlayerId)}*.`
+        }, 'categorygame');
+        return true;
+    }
+
+    const answer = normalizeCategoryAnswer(rawText);
+    if (!answer) {
+        await botSend(sock, groupId, { text: `❗ Scrie un răspuns valid din categoria *${CATEGORY_GAME_VARIANTS[game.categoryKey].label}*.` }, 'categorygame');
+        return true;
+    }
+
+    if (!game.validAnswers.has(answer)) {
+        await botSend(sock, groupId, {
+            text: `❌ *${getShortParticipantName(participantId)}* a pierdut!
+Răspunsul *${rawText}* nu face parte din categoria *${CATEGORY_GAME_VARIANTS[game.categoryKey].label}*.
+
+🥇 Câștigător: *${getShortParticipantName(otherPlayerId)}*` 
+        }, 'categorygame');
+        activeCategoryGames.delete(groupId);
+        return true;
+    }
+
+    if (game.usedItems.has(answer)) {
+        await botSend(sock, groupId, {
+            text: `❌ *${getShortParticipantName(participantId)}* a pierdut!
+Răspunsul *${rawText}* a fost deja folosit.
+
+🥇 Câștigător: *${getShortParticipantName(otherPlayerId)}*` 
+        }, 'categorygame');
+        activeCategoryGames.delete(groupId);
+        return true;
+    }
+
+    game.usedItems.add(answer);
+    if (game.usedItems.size >= game.validAnswers.size) {
+        await botSend(sock, groupId, {
+            text: `🏁 Felicitări! Ați epuizat toate răspunsurile posibile pentru categoria *${CATEGORY_GAME_VARIANTS[game.categoryKey].label}*.
+Jocul s-a terminat la egalitate.`
+        }, 'categorygame');
+        activeCategoryGames.delete(groupId);
+        return true;
+    }
+
+    game.currentPlayerIndex = 1 - game.currentPlayerIndex;
+    await botSend(sock, groupId, {
+        text: `✅ *${rawText}* este valid!
+
+Următorul este *${getShortParticipantName(game.players[game.currentPlayerIndex])}*.
+Răspunsuri utilizate: *${game.usedItems.size}/${game.validAnswers.size}*.`
+    }, 'categorygame');
+    return true;
+}
+
 // ============================================================
 // GHICEȘTE CUVÂNTUL (scramble)
 // ============================================================
@@ -1541,45 +1654,6 @@ async function handleScrambleGuess(sock, game, guess) {
     await botSend(sock, groupId, {
         text: `❌ Greșit!\n\n${livesBar(game.attemptsLeft, SCRAMBLE_MAX_ATTEMPTS)}`
     }, 'scramble');
-}
-
-const DICE_FACES = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅']; // index 1-6
-
-async function startDiceGame(sock) {
-    // FIX: raw Math.random() roll → could show the same face twice in a
-    // row. Now drawn from a no-repeat deck of the 6 faces.
-    const value = pickNoRepeat('dice', [1, 2, 3, 4, 5, 6]);
-    await botSend(sock, groupId, {
-        text: `${DICE_FACES[value]} Ai aruncat un *${value}*!\n\nScrie *cupidon dice* pentru altă aruncare!`
-    }, 'diceGame');
-}
-
-async function startCoinFlipGame(sock) {
-    // FIX: raw Math.random() > 0.5 → could show the same face twice in a
-    // row. Now drawn from a no-repeat deck of the 2 faces.
-    const result = pickNoRepeat('coin', ['Cap', 'Pajură']);
-    await botSend(sock, groupId, {
-        text: `🪙 Moneda se învârte...\n\nA ieșit: *${result}*!\n\nScrie *cupidon coin* pentru altă încercare!`
-    }, 'coinGame');
-}
-
-async function startEightBallGame(sock) {
-    const answers = [
-        '💫 Da, sigur!',
-        '🌙 Nu chiar acum.',
-        '✨ Da, dar răbdare.',
-        '🌈 Se pare că da.',
-        '☁️ Mă îndoiesc.',
-        '🌟 Concentrează-te și întreabă din nou.',
-        '🔮 Fără îndoială, da!',
-        '🍀 Semnele arată bine.',
-        '🌊 Răspunsul e neclar acum, mai încearcă.',
-        '⚡ Categoric, da!',
-        '🌑 Nu conta pe asta.',
-        '🕯️ Întreabă din nou mai târziu.'
-    ];
-    const answer = pickNoRepeat('eightball', answers);
-    await botSend(sock, groupId, { text: answer }, 'eightball');
 }
 
 async function startSlotMachineGame(sock) {
@@ -1920,10 +1994,6 @@ async function handleAnimalGuess(sock, game, guessText) {
 async function handleInteractiveButton(sock, buttonId) {
     if (buttonId.startsWith('ttt_')) {
         await handleTicTacToeButton(sock, buttonId);
-        return;
-    }
-    if (buttonId.startsWith('rps_')) {
-        await handleRpsChoice(sock, buttonId);
         return;
     }
     if (buttonId.startsWith('quiz_')) {
@@ -2371,7 +2441,7 @@ function restartWithFreshAuth(authDir) {
     process.exit(0);
 }
 
-async function startBot() {
+async function startBot()
     console.log('🚀 Starting bot initialization...');
     try {
         const AUTH_DIR = process.env.AUTH_DIR || 'auth';
@@ -2425,8 +2495,7 @@ async function startBot() {
         process.once('exit', () => clearPidFile());
 
                 let botStartupTimestamp = Math.floor(Date.now() / 1000);
-
-        // ==================== CONNECTION HANDLER ====================
+        console.log('✅ Bot core started successfully. Waiting for WhatsApp connection...');
         sock.ev.on('connection.update', (update) => {
             const { connection, qr, pairingCode, lastDisconnect } = update;
 
@@ -2490,6 +2559,7 @@ async function startBot() {
             || msg.message.listResponseMessage?.singleSelectReply?.selectedId;
         const rawText = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         const text = normalizeText(rawText);
+        const participantId = msg.key.participant || msg.participant || msg.key.remoteJid;
 
         if (msg.key.fromMe && (botSentIds.has(msg.key.id) || isBotMessageText(rawText))) return;
 
@@ -2586,46 +2656,16 @@ async function startBot() {
             return;
         }
 
-        const activeAnagramGame = activeAnagramGames.get(groupId);
-        if (activeAnagramGame && !text.includes('cupidon')) {
-            await handleAnagramGuess(sock, activeAnagramGame, rawText);
-            return;
-        }
-
-        const activeEmojiQuizGame = activeEmojiQuizGames.get(groupId);
-        if (activeEmojiQuizGame && !text.includes('cupidon')) {
-            await handleEmojiQuizGuess(sock, activeEmojiQuizGame, rawText);
-            return;
-        }
-
-        const activeMathGame = activeMathGames.get(groupId);
-        if (activeMathGame && !text.includes('cupidon')) {
-            await handleMathGuess(sock, activeMathGame, rawText);
-            return;
-        }
-
-        const activeColorGame = activeColorGames.get(groupId);
-        if (activeColorGame && !text.includes('cupidon')) {
-            await handleColorGuess(sock, activeColorGame, rawText);
-            return;
-        }
-
-        const activeTriviaGame = activeTriviaGames.get(groupId);
-        if (activeTriviaGame && !text.includes('cupidon')) {
-            await handleTriviaGuess(sock, activeTriviaGame, rawText);
-            return;
-        }
-
-        const activeAnimalGame = activeAnimalGames.get(groupId);
-        if (activeAnimalGame && !text.includes('cupidon')) {
-            await handleAnimalGuess(sock, activeAnimalGame, rawText);
-            return;
+        const activeCategoryGame = activeCategoryGames.get(groupId);
+        if (activeCategoryGame && !text.includes('cupidon')) {
+            const handled = await handleCategoryGameGuess(sock, activeCategoryGame, participantId, rawText);
+            if (handled) return;
         }
 
         if (!text) return;
 
         // ==================== SPOTIFY ====================
-        if (text.includes('spotify')) {
+        if (text.includes('Spotify')) {
             await botSend(sock, groupId, {
                 text: `🎵 *Spotify*\n\n` +
                       `Ascultă playlist-ul nostru special de dragoste:\n\n` +
@@ -2736,36 +2776,6 @@ async function startBot() {
 
             if (text.includes('compatibility')) {
                 await botSend(sock, groupId, { text: buildRelationshipMessage('compatibility') }, 'compatibility');
-                return;
-            }
-
-            if (text.includes('stefi') || text.includes('stefania')) {
-                await sendTextWithImage(
-                    sock,
-                    `Iată o imagine specială pentru tine! Stefania 🖼️`,
-                    'general',
-                    path.join(__dirname, 'Stefania', 'poze')
-                );
-                return;
-            }
-
-            if (text.includes('denis')) {
-                await sendTextWithImage(
-                    sock,
-                    `Iată o imagine specială pentru tine! Denis 🖼️`,
-                    'general',
-                    path.join(__dirname, 'Denis', 'poze')
-                );
-                return;
-            }
-
-            if (text.includes('temp')) {
-                const time = getTimeTogether().split(',')[0];
-                await sendImageFromFolder(sock, path.join(__dirname, 'Denis', 'poze'), `🖼️`, groupId);
-                await sendImageFromFolder(sock, path.join(__dirname, 'Stefania', 'poze'), `🖼️`, groupId);
-                await botSend(sock, groupId, {
-                    text: `🎉 Ați ajuns la ❤️ *${time}* ❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
-                }, 'milestone');
                 return;
             }
 
@@ -2973,11 +2983,6 @@ async function startBot() {
             // FIX (carried over): 'emojiquiz' contains the substring 'emoji' (and
             // 'quiz'), so it must be checked before both those generic branches
             // or it can never be reached.
-            if (text.includes('emojiquiz')) {
-                await startEmojiQuizGame(sock);
-                return;
-            }
-
             if (text.includes('emoji')) {
                 await sendCommandReply(sock, 'emoji');
                 return;
@@ -3039,11 +3044,6 @@ async function startBot() {
                 return;
             }
 
-            if (text.includes('rps') || text.includes('piatrafoarfecahartie')) {
-                await startRpsGame(sock);
-                return;
-            }
-
             if (text.includes('quiz')) {
                 await startQuizGame(sock);
                 return;
@@ -3054,25 +3054,31 @@ async function startBot() {
                 return;
             }
 
+            const categoryCommand = Object.keys(CATEGORY_GAME_VARIANTS).find(key => {
+                if (key === 'desene animate') {
+                    return text.includes('desene') && text.includes('animate');
+                }
+                return text.includes(key);
+            });
+
+            if (categoryCommand) {
+                if (!activeCategoryGames.has(groupId)) {
+                    await startCategoryGame(sock, categoryCommand, participantId);
+                } else {
+                    const game = activeCategoryGames.get(groupId);
+                    if (game.phase === 'waiting') {
+                        await botSend(sock, groupId, { text: `⚠️ Un joc 1v1 este deja pregătit. Scrie *cupidon join* pentru a te alătura.` }, 'categorygame');
+                    } else {
+                        await botSend(sock, groupId, { text: `⚠️ Un joc 1v1 este deja în curs. Așteaptă finalizarea acestuia.` }, 'categorygame');
+                    }
+                }
+                return;
+            }
+
             if (text.includes('games') || text.includes('jocuri')) {
                 await botSend(sock, groupId, {
-                    text: `🧠 riddle / ghicitoare\n🎮 tictactoe\n🪨 rps\n🧠 quiz\n🔢 numar\n🎲 dice\n🪙 coin\n🔮 8ball / fortune\n🎰 slot\n🧩 scramble\n🎯 hangman\n🧩 anagram\n🧠 emojiquiz\n🧮 math\n🎨 color\n🐾 animal\n🎲 choose\n\nScrie *cupidon <nume joc>* pentru a începe!`
+                    text: `🧠 riddle / ghicitoare\n🎮 tictactoe\n🧠 quiz\n🔢 numar\n🎰 slot\n🧩 scramble\n🎯 hangman\n🔢 100\n🌸 flori / fete / baieti\n🔸 actori / cantareti / filme\n🔸 bucate / desene animate\n\nScrie *cupidon <nume joc>* pentru a începe!`
                 }, 'help');
-                return;
-            }
-
-            if (text.includes('dice')) {
-                await startDiceGame(sock);
-                return;
-            }
-
-            if (text.includes('coin')) {
-                await startCoinFlipGame(sock);
-                return;
-            }
-
-            if (text.includes('8ball') || text.includes('fortune')) {
-                await startEightBallGame(sock);
                 return;
             }
 
@@ -3091,32 +3097,40 @@ async function startBot() {
                 return;
             }
 
-            if (text.includes('anagram')) {
-                await startAnagramGame(sock);
+            if (text.includes('100')) {
+                if (!active100Game.has(groupId)) {
+                    active100Game.set(groupId, { currentTotal: 0 });
+                    await botSend(sock, groupId, {
+                        text: `🔢 *Jocul 100* a început!\n\n` +
+                              `Total actual: *0*\n\n` +
+                              `Fiecare jucător adaugă un număr între *1* și *10*.\n` +
+                              `Cine ajunge primul la exact *100* câștigă! 🎉\n\n` +
+                              `Scrie un număr (1-10)`,
+                    }, 'game100');
+                } else {
+                    const total = active100Game.get(groupId).currentTotal;
+                    await botSend(sock, groupId, {
+                        text: `🔢 Jocul 100 este deja activ!\nTotal actual: *${total}*`
+                    }, 'game100');
+                }
                 return;
             }
 
-            if (text.includes('math')) {
-                await startMathQuizGame(sock);
+            if (text.includes('join')) {
+                const game = activeCategoryGames.get(groupId);
+                if (!game) {
+                    await botSend(sock, groupId, { text: `⚠️ Nu există niciun joc 1v1 la care să te alături.` }, 'categorygame');
+                    return;
+                }
+                await joinCategoryGame(sock, game, participantId);
                 return;
             }
 
-            if (text.includes('color')) {
-                await startColorGame(sock);
-                return;
-            }
-
-            if (text.includes('trivia')) {
-                await startTriviaGame(sock);
-                return;
-            }
-
-            if (text.includes('animal')) {
-                await startAnimalGame(sock);
-                return;
-            }
-
-            // FIX: these used to check for the literal substring "cupidon sapt"
+            await botSend(sock, groupId, {
+                text: `Nu am înțeles comanda 🤔\nÎncearcă: *cupidon help* și ghidează-te de acolo`
+            });
+            return;
+        }
             // etc, which happened to work but only because "cupidon" is always
             // the first word — fragile if extra words were added. They also
             // used to have no safe fallback (see sendMilestoneMessage fix
@@ -3134,19 +3148,6 @@ async function startBot() {
 
             if (tokens.includes('an')) {
                 await sendMilestoneMessage(sock, 'an');
-                return;
-            }
-
-            if (text.includes('choose')) {
-                const parts = rawText.split(/\s+/).filter(Boolean);
-                const chooseIndex = parts.findIndex(part => normalizeText(part) === 'choose');
-                const options = chooseIndex >= 0 ? parts.slice(chooseIndex + 1) : [];
-                if (options.length >= 2) {
-                    const picked = options[Math.floor(Math.random() * options.length)];
-                    await botSend(sock, groupId, { text: `🎲 Am ales: *${picked}*` });
-                } else {
-                    await botSend(sock, groupId, { text: `⚠️ Folosește: *cupidon choose opțiune1 opțiune2*` });
-                }
                 return;
             }
 
@@ -3209,7 +3210,7 @@ async function startBot() {
             text: `🎉 Ați ajuns la ❤️ *${time}* ❤️ împreună!\n\n💖 Eu, Denis, te iubesc din tot sufletul și nu te voi uita niciodată.\n✨ Fiecare zi cu tine este mai frumoasă, mai caldă și mai specială.\n💞 În acest moment aș vrea să vin acasă, să te iau în brațe și să te țin permanent în brațele mele.\n🌹 Tu ești minunată și aș vrea să te sărut pe buze pentru cât de frumoasă și de deșteaptă ești ❤️`
         }, 'milestone');
     }, { timezone: 'Europe/Bucharest' });
-    } catch (error) {
+    catch (error) {
         console.error('❌ CRITICAL: Failed to initialize bot:', error);
         console.error('Stack trace:', error.stack);
         console.log('⚠️ Web server remains active. Check auth directory and environment variables.');

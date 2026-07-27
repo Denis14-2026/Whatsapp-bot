@@ -45,7 +45,7 @@ setInterval(() => {
     console.log(`💓 Heartbeat - ${new Date().toISOString()}`);
 }, 5 * 60 * 1000); // every 5 minutes
 
-const groupId = '58145535742158@lid';
+const groupId = '120363409752411368@g.us';
 
 // AI integration removed — Cupidon will use only built-in message pools.
 // Riddle timeout, max wrong answers, and test mode all now live in

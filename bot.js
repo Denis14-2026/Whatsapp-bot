@@ -2477,12 +2477,21 @@ async function startBot() {
         const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
         console.log('✅ Auth state loaded');
 
-        // Always fetch the latest WhatsApp Web protocol version.
-        // Baileys reverse-engineers WhatsApp's protocol, so using a stale
-        // hardcoded version is one of the most common causes of 401/405
-        // "Connection Failure" errors right after WhatsApp updates.
         console.log('🔄 Fetching latest Baileys version...');
-        const { version, isLatest } = await fetchLatestBaileysVersion();
+        let version, isLatest;
+        try {
+            const versionPromise = fetchLatestBaileysVersion();
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Version fetch timeout')), 10000)
+            );
+            const result = await Promise.race([versionPromise, timeoutPromise]);
+            version = result.version;
+            isLatest = result.isLatest;
+        } catch (error) {
+            console.log('⚠️ Could not fetch latest version, using default...');
+            version = [2, 2024, 12];
+            isLatest = false;
+        }
         console.log(`ℹ️ Folosesc WA v${version.join('.')}, este ultima versiune: ${isLatest}`);
 
         console.log('🔌 Creating WhatsApp socket...');
@@ -2494,6 +2503,7 @@ async function startBot() {
             shouldIgnoreJid: jid => jid?.includes('broadcast')
         });
 
+        console.log('✅ Socket created, registering event handlers...');
         sock.ev.on('creds.update', saveCreds);
 
         const handleShutdown = async (signal) => {
@@ -2519,8 +2529,10 @@ async function startBot() {
         process.once('SIGTERM', () => handleShutdown('SIGTERM'));
         process.once('exit', () => clearPidFile());
 
-                let botStartupTimestamp = Math.floor(Date.now() / 1000);
+        let botStartupTimestamp = Math.floor(Date.now() / 1000);
         console.log('✅ Bot core started successfully. Waiting for WhatsApp connection...');
+        console.log('⏳ Așteptând conexiunea WhatsApp...');
+        
         sock.ev.on('connection.update', (update) => {
             const { connection, qr, pairingCode, lastDisconnect } = update;
 
@@ -2536,7 +2548,7 @@ async function startBot() {
                 if (!startupAnnounced) {
                     startupAnnounced = true;
                     botSend(sock, groupId, { text: `🤖✨ Cupidon este online și gata de treabă!\nScrie *cupidon help* pentru meniu sau *cupidon setari* pentru configurări.` })
-                        .catch(() => {});
+                        .catch(err => console.log('⚠️ Eroare la anunțul de pornire:', err.message));
                 }
                 if (settings.testMode) {
                     console.log('🧪 Test Mode este ACTIV — orice mesaj din grup declanșează un mesaj random.');

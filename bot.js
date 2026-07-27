@@ -6,14 +6,8 @@ const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
 
-// Default love layers for decorative message styling
-const loveLayers = [
-    { border: '✦' + '━'.repeat(20) + '✦', accent: ['✨', '💫'], corners: ['💝', '💝'] },
-    { border: '❤️' + '━'.repeat(18) + '❤️', accent: ['💖', '💖'], corners: ['✦', '✦'] },
-    { border: '💕' + '━'.repeat(18) + '💕', accent: ['🌹', '🌹'], corners: ['💫', '💫'] },
-    { border: '🌸' + '━'.repeat(18) + '🌸', accent: ['✨', '✨'], corners: ['💕', '💕'] },
-    { border: '💞' + '━'.repeat(18) + '💞', accent: ['💖', '💖'], corners: ['🌹', '🌹'] }
-];
+// Shared decorative design layers for message cards and bars
+const loveLayers = require('./design');
 
 const pidFile = path.join(__dirname, '.bot.pid');
 
@@ -45,7 +39,7 @@ setInterval(() => {
     console.log(`💓 Heartbeat - ${new Date().toISOString()}`);
 }, 5 * 60 * 1000); // every 5 minutes
 
-const groupId = '120363409752411368@g.us';
+const groupId = '58145535742158@lid';
 
 // AI integration removed — Cupidon will use only built-in message pools.
 // Riddle timeout, max wrong answers, and test mode all now live in
@@ -68,7 +62,7 @@ let shutdownAnnounced = false;
 // like hangman, etc.
 // ============================================================
 
-const RULE = '━'.repeat(20);
+const RULE = loveLayers[0]?.border || '✦' + '━'.repeat(20) + '✦';
 const FOOTER = '🏹 Cupidon';
 
 const styleMap = {
@@ -199,20 +193,24 @@ function decorateMessage(body, type = 'general') {
     const cleanBody = String(body).replace(/\n{3,}/g, '\n\n').trim();
     const layer = getRandomLayer();
     const edge = layer?.border || ('✦' + RULE + '✦');
-    const accent = randomItem(layer?.accent) || '';
-    const corner = randomItem(layer?.corners) || '';
+    const accent = randomItem(layer?.accent) || '💖';
+    const corner = randomItem(layer?.corners) || '💝';
+    const fill = layer?.fill || '✧';
 
     const lines = [];
     lines.push(edge);
-    if (style.category) lines.push(`   ${accent}${style.category}${accent}`);
+    if (style.category) lines.push(`   ${accent}${accent} ${style.category} ${accent}${accent}`);
     lines.push(`   ${corner} ${style.icon}  ${toBoldUnicode(style.title)} ${corner}`.trim());
     lines.push(edge);
     lines.push('');
 
-    const bodyLines = cleanBody.split('\n').map(line => accent ? `${accent} ${line}` : line);
+    const bodyLines = cleanBody.split('\n').map(line => {
+        const trimmed = line.trim();
+        return trimmed ? `${fill} ${trimmed}` : '';
+    });
     lines.push(...bodyLines);
     lines.push('');
-    lines.push(`${FOOTER} · cupidon help`);
+    lines.push(`${accent} ${FOOTER} · cupidon help ${accent}`);
 
     return lines.join('\n');
 }
@@ -222,7 +220,12 @@ function decorateMessage(body, type = 'general') {
 // of a bare "2/3" counter.
 function livesBar(remaining, max) {
     const safeRemaining = Math.max(0, Math.min(remaining, max));
-    return '❤️'.repeat(safeRemaining) + '🤍'.repeat(max - safeRemaining);
+    const layer = getRandomLayer();
+    const accent = randomItem(layer?.accent) || '💖';
+    const fill = layer?.fill || '♡';
+    const empty = '🤍';
+    const filled = `${accent}${fill}`.trim();
+    return `${filled}`.repeat(safeRemaining) + empty.repeat(max - safeRemaining);
 }
 
 const messagePool = [
@@ -563,6 +566,9 @@ const DEFAULT_SETTINGS = {
     dailyMilestoneEnabled: true,
     riddleTimeoutMinutes: 5,
     maxWrongAnswers: 3,
+    hangmanLives: 6,
+    numberGuessLives: 7,
+    scrambleLives: 3,
     hourlyMessageTypes: ['romantic', 'rizz', 'flirt', 'pickup'],
     customMessages: {}
 };
@@ -627,12 +633,15 @@ function getSettingsSummaryText() {
         `⏰ Mesaje orare: ${onOff(settings.hourlyMessagesEnabled)}\n` +
         `🎉 Mesaj de miezul nopții: ${onOff(settings.dailyMilestoneEnabled)}\n` +
         `⏱️ Timp ghicitoare: ${settings.riddleTimeoutMinutes} minute\n` +
-        `❤️ Vieți ghicitoare: ${settings.maxWrongAnswers}\n` +
+        `❤️ Vieți ghicitoare (riddle): ${settings.maxWrongAnswers}\n` +
+        `❤️ Vieți spânzurătoare: ${settings.hangmanLives}\n` +
+        `❤️ Vieți ghicește numărul: ${settings.numberGuessLives}\n` +
+        `❤️ Vieți scramble: ${settings.scrambleLives}\n` +
         `📝 Mesaje personalizate: ${Object.keys(settings.customMessages || {}).length}`;
 }
 
 function getSettingsMenuText() {
-    return `⚙️ Setări Cupidon\n\nAlege una dintre opțiuni scriind numărul sau numele:\n\n1. test mode\n2. mesaje orare\n3. mesaj de miezul nopții\n4. timp ghicitoare\n5. vieți ghicitoare\n6. mesaj personalizat\n7. șterge mesaj personalizat\n8. reset setări\n9. arată setările\n\nScrie *back* sau *anuleaza* pentru a ieși.`;
+    return `⚙️ Setări Cupidon\n\nAlege una dintre opțiuni scriind numărul sau numele:\n\n1. test mode\n2. mesaje orare\n3. mesaj de miezul nopții\n4. timp ghicitoare\n5. vieți ghicitoare (riddle)\n6. vieți spânzurătoare (hangman)\n7. vieți ghicește numărul (numberguess)\n8. vieți scramble\n9. mesaj personalizat\n10. șterge mesaj personalizat\n11. reset setări\n12. arată setările\n\nScrie *back* sau *anuleaza* pentru a ieși.`;
 }
 
 function startSettingsFlow(groupId) {
@@ -706,26 +715,50 @@ Scrie *back* pentru a reveni.` }, 'settings');
         }
 
         if (normalized === '5' || normalized === 'lives' || normalized === 'vieți' || normalized === 'vieți ghicitoare') {
-            SETTINGS_FLOW.set(groupId, { step: 'awaiting-lives', action: 'lives' });
-            await botSend(sock, groupId, { text: `❤️ Trimite un număr pentru câte vieți dorești la ghicitori.
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-lives', action: 'lives_riddle' });
+            await botSend(sock, groupId, { text: `❤️ Trimite un număr pentru câte vieți dorești la ghicitori (riddle).
 Valori recomandate: 2, 3, 4, 5.
 Scrie *back* pentru a reveni.` }, 'settings');
             return true;
         }
 
-        if (normalized === '6' || normalized === 'custom' || normalized === 'mesaj personalizat') {
+        if (normalized === '6' || normalized === 'hangman lives' || normalized === 'vieți spânzurătoare') {
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-lives', action: 'lives_hangman' });
+            await botSend(sock, groupId, { text: `❤️ Trimite un număr pentru câte vieți dorești la spânzurătoare (hangman).
+Valori recomandate: 4, 5, 6, 7, 8.
+Scrie *back* pentru a reveni.` }, 'settings');
+            return true;
+        }
+
+        if (normalized === '7' || normalized === 'numberguess lives' || normalized === 'vieți ghicește numărul') {
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-lives', action: 'lives_numberguess' });
+            await botSend(sock, groupId, { text: `❤️ Trimite un număr pentru câte vieți dorești la ghicește numărul.
+Valori recomandate: 5, 6, 7, 8, 9, 10.
+Scrie *back* pentru a reveni.` }, 'settings');
+            return true;
+        }
+
+        if (normalized === '8' || normalized === 'scramble lives' || normalized === 'vieți scramble') {
+            SETTINGS_FLOW.set(groupId, { step: 'awaiting-lives', action: 'lives_scramble' });
+            await botSend(sock, groupId, { text: `❤️ Trimite un număr pentru câte vieți dorești la scramble.
+Valori recomandate: 2, 3, 4, 5.
+Scrie *back* pentru a reveni.` }, 'settings');
+            return true;
+        }
+
+        if (normalized === '9' || normalized === 'custom' || normalized === 'mesaj personalizat') {
             SETTINGS_FLOW.set(groupId, { step: 'awaiting-category', action: 'custom' });
             await botSend(sock, groupId, { text: `📝 Scrie categoria pentru care vrei să setezi un mesaj nou.\nExemple: ${getSettingsCategoryListText()}` }, 'settings');
             return true;
         }
 
-        if (normalized === '7' || normalized === 'clear' || normalized === 'sterge mesaj personalizat') {
+        if (normalized === '10' || normalized === 'clear' || normalized === 'sterge mesaj personalizat') {
             SETTINGS_FLOW.set(groupId, { step: 'awaiting-category', action: 'clear' });
             await botSend(sock, groupId, { text: `🗑️ Scrie categoria pentru care vrei să ștergi mesajul personalizat.` }, 'settings');
             return true;
         }
 
-        if (normalized === '8' || normalized === 'reset' || normalized === 'reset setări') {
+        if (normalized === '11' || normalized === 'reset' || normalized === 'reset setări') {
             settings = { ...DEFAULT_SETTINGS, customMessages: {} };
             saveSettings();
             await botSend(sock, groupId, { text: '🔄 Setările au fost resetate la valorile implicite.' }, 'settings');
@@ -733,7 +766,7 @@ Scrie *back* pentru a reveni.` }, 'settings');
             return true;
         }
 
-        if (normalized === '9' || normalized === 'show' || normalized === 'arată setările') {
+        if (normalized === '12' || normalized === 'show' || normalized === 'arată setările') {
             await botSend(sock, groupId, { text: getSettingsSummaryText() }, 'settings');
             await sendSettingsMenu(sock);
             return true;
@@ -951,7 +984,7 @@ ${RULE}
 ${RULE}
 🎮 *GAMES*
 ${RULE}
-🎮 tictactoe   � quiz       🔢 numar
+🎮 tictactoe     quiz       🔢 numar
 🎰 slot       🧩 scramble   🎯 hangman
 🔢 100        🌸 flori/fete/baieti
 🔸 actori     🔸 cantareti   🔸 filme
